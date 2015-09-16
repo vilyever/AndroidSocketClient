@@ -1,4 +1,4 @@
-package com.vilyever.vdsocketclient;
+package com.vilyever.socketclient;
 
 import java.util.concurrent.atomic.AtomicInteger;
 

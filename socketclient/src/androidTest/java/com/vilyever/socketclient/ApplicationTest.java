@@ -1,4 +1,4 @@
-package com.vilyever.vdsocketclient;
+package com.vilyever.socketclient;
 
 import android.app.Application;
 import android.test.ApplicationTestCase;

@@ -1,4 +1,4 @@
-package com.vilyever.vdsocketclient;
+package com.vilyever.socketclient;
 
 import android.os.Handler;
 import android.os.Message;

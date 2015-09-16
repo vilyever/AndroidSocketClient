@@ -1,1 +1,1 @@
-include ':app', ':vdsocketclient'
+include ':app', ':socketclient'

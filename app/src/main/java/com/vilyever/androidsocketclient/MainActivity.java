@@ -5,7 +5,7 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 
-import com.vilyever.vdsocketclient.VDSocketClient;
+import com.vilyever.socketclient.VDSocketClient;
 
 public class MainActivity extends AppCompatActivity {
 
