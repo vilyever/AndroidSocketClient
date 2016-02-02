@@ -13,31 +13,16 @@ public class VDSocketPacket {
 
     private static final AtomicInteger atomicInteger = new AtomicInteger();
 
-    private int ID = atomicInteger.getAndIncrement();
-    private byte[] data;
-
-    
-    /* #Constructors */
+    /* Constructors */
     public VDSocketPacket(String message) {
         self.pack(message);
     }
-    
-    /* #Overrides */    
-    
-    /* #Accessors */
-    public int getID() {
-        return ID;
-    }
 
-    public byte[] getPacket() {
-        return data;
-    }
-     
-    /* #Delegates */     
-     
-    /* #Private Methods */    
-    
-    /* #Public Methods */
+    /* Public Methods */
+    /**
+     * 打包string
+     * @param message 字符串信息
+     */
     public void pack(String message) {
         message += "\r\n";
         try {
@@ -48,11 +33,15 @@ public class VDSocketPacket {
         }
     }
 
-    /* #Classes */
+    /* Properties */
+    private int ID = atomicInteger.getAndIncrement();
+    public int getID() {
+        return ID;
+    }
 
-    /* #Interfaces */     
-     
-    /* #Annotations @interface */    
-    
-    /* #Enums */
+    private byte[] data;
+    public byte[] getPacket() {
+        return data;
+    }
+
 }
