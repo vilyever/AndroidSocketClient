@@ -319,7 +319,7 @@ public class VDSocketClient {
     protected void onConnected() {
         for (VDSocketClientDelegate delegate : self.delegates) {
             if (delegate != null) {
-                delegate.didConnectFromSocketClient(self);
+                delegate.didConnect(self);
             }
         }
     }
@@ -327,7 +327,7 @@ public class VDSocketClient {
     protected void onDisconnected() {
         for (VDSocketClientDelegate delegate : self.getDelegates()) {
             if (delegate != null) {
-                delegate.didDisconnectFromSocketClient(self);
+                delegate.didDisconnect(self);
             }
         }
     }
@@ -335,7 +335,7 @@ public class VDSocketClient {
     protected void onResponse(String response) {
         for (VDSocketClientDelegate delegate : self.getDelegates()) {
             if (delegate != null) {
-                delegate.didReceiveResponseFromSocketClient(self, response);
+                delegate.didReceiveResponse(self, response);
             }
         }
     }
@@ -464,9 +464,9 @@ public class VDSocketClient {
 
     /* Interfaces */
     public interface VDSocketClientDelegate {
-        void didConnectFromSocketClient(VDSocketClient client);
-        void didDisconnectFromSocketClient(VDSocketClient client);
-        void didReceiveResponseFromSocketClient(VDSocketClient client, String response);
+        void didConnect(VDSocketClient client);
+        void didDisconnect(VDSocketClient client);
+        void didReceiveResponse(VDSocketClient client, String response);
     }
 
 
