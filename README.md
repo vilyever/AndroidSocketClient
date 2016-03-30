@@ -27,17 +27,17 @@ dependencies {
 VDSocketClient socketClient = new VDSocketClient();
 socketClient.registerDelegate(new VDSocketClient.VDSocketClientDelegate() {
     @Override
-    public void didConnect(VDSocketClient client) {
+    public void onConnected(VDSocketClient client) {
 
     }
 
     @Override
-    public void didDisconnect(VDSocketClient client) {
+    public void onDisconnected(VDSocketClient client) {
 
     }
 
     @Override
-    public void didReceiveResponse(VDSocketClient client, String response) {
+    public void onResponse(VDSocketClient client, String response) {
 
     }
 });
