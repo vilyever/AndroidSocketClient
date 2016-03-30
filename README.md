@@ -24,7 +24,7 @@ dependencies {
 ## Usage
 ```java
 
-SocketClient socketClient = new SocketClient(192.168.1.1", 80);
+SocketClient socketClient = new SocketClient("192.168.1.1", 80);
 socketClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
     @Override
     public void onConnected(SocketClient client) {
