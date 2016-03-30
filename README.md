@@ -1,5 +1,5 @@
 # AndroidSocketClient
-socket client 简易封装
+socket client server简易封装
 
 ## Import
 [JitPack](https://jitpack.io/)
@@ -17,33 +17,31 @@ Step 2. Add the dependency in the form
 
 ```gradle
 dependencies {
-  compile 'com.github.vilyever:AndroidSocketClient:1.1.1'
+  compile 'com.github.vilyever:AndroidSocketClient:1.2.0'
 }
 ```
 
 ## Usage
 ```java
 
-VDSocketClient socketClient = new VDSocketClient();
-socketClient.registerDelegate(new VDSocketClient.VDSocketClientDelegate() {
+SocketClient socketClient = new SocketClient(192.168.1.1", 80);
+socketClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
     @Override
-    public void onConnected(VDSocketClient client) {
+    public void onConnected(SocketClient client) {
 
     }
 
     @Override
-    public void onDisconnected(VDSocketClient client) {
+    public void onDisconnected(SocketClient client) {
 
     }
 
     @Override
-    public void onResponse(VDSocketClient client, String response) {
+    public void onResponse(SocketClient client, @NonNull String response) {
 
     }
 });
-socketClient.connect("192.168.1.1", 80);
 ```
 
 ## License
 [Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt)
-

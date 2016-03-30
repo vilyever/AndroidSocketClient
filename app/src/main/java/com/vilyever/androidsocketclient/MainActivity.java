@@ -4,8 +4,8 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 
-import com.vilyever.logger.Logger;
 import com.vilyever.socketclient.SocketClient;
+import com.vilyever.socketclient.SocketPacket;
 import com.vilyever.socketclient.server.SocketServer;
 import com.vilyever.socketclient.server.SocketServerClient;
 import com.vilyever.socketclient.util.IPUtil;
@@ -24,7 +24,7 @@ public class MainActivity extends AppCompatActivity {
     private SocketClient localSocketClient;
     protected SocketClient getLocalSocketClient() {
         if (this.localSocketClient == null) {
-            this.localSocketClient = new SocketClient("192.168.1.153", 2333);
+            this.localSocketClient = new SocketClient(IPUtil.getIPAddress(true), 2333);
         }
         return this.localSocketClient;
     }
@@ -74,7 +74,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         getSocketServer().beginListen();
-        getSocketServer().setHeartBeatInterval(1000 * 120);
 
         getLocalSocketClient().registerSocketDelegate(new SocketClient.SocketDelegate() {
             @Override
@@ -104,13 +103,10 @@ public class MainActivity extends AppCompatActivity {
         getWindow().getDecorView().postDelayed(new Runnable() {
             @Override
             public void run() {
-//                getLocalSocketClient().send(SocketPacket.DefaultPollingQueryMessage);
-                getLocalSocketClient().disconnect();
+                getLocalSocketClient().send(SocketPacket.DefaultPollingQueryMessage);
+//                getLocalSocketClient().disconnect();
             }
         }, 30 * 1000);
-
-
-        Logger.log("ip " + IPUtil.getIPAddress(true));
     }
 
 }
