@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 
+import com.vilyever.logger.Logger;
 import com.vilyever.socketclient.SocketClient;
 import com.vilyever.socketclient.SocketPacket;
 import com.vilyever.socketclient.server.SocketServer;
@@ -46,30 +47,30 @@ public class MainActivity extends AppCompatActivity {
         getSocketServer().registerSocketServerDelegate(new SocketServer.SocketServerDelegate() {
             @Override
             public void onClientConnected(SocketServer socketServer, SocketServerClient socketServerClient) {
-                System.out.println("socketServer onClientConnected");
-
+                Logger.log("socketServer onClientConnected");
+        
                 self.setServerListeningSocketServerClient(socketServerClient);
                 socketServerClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
                     @Override
                     public void onConnected(SocketClient client) {
-
+                
                     }
-
+            
                     @Override
                     public void onDisconnected(SocketClient client) {
-                        System.out.println("serverListeningSocketServerClient onDisconnected");
+                        Logger.log("serverListeningSocketServerClient onDisconnected");
                     }
-
+            
                     @Override
                     public void onResponse(SocketClient client, @NonNull String response) {
-                        System.out.println("serverListeningSocketServerClient onResponse \n" + response);
+                        Logger.log("serverListeningSocketServerClient onResponse \n" + response);
                     }
                 });
             }
-
+    
             @Override
             public void onClientDisconnected(SocketServer socketServer, SocketServerClient socketServerClient) {
-                System.out.println("socketServer onClientDisconnected");
+                Logger.log("socketServer onClientDisconnected");
                 self.setServerListeningSocketServerClient(null);
             }
         });
@@ -78,17 +79,17 @@ public class MainActivity extends AppCompatActivity {
         getLocalSocketClient().registerSocketDelegate(new SocketClient.SocketDelegate() {
             @Override
             public void onConnected(SocketClient client) {
-                System.out.println("localSocketClient onConnected");
+                Logger.log("localSocketClient onConnected");
             }
 
             @Override
             public void onDisconnected(SocketClient client) {
-                System.out.println("localSocketClient onDisconnected");
+                Logger.log("localSocketClient onDisconnected");
             }
 
             @Override
             public void onResponse(SocketClient client, @NonNull String response) {
-                System.out.println("localSocketClient onResponse \n" + response);
+                Logger.log("localSocketClient onResponse \n" + response);
             }
         });
 

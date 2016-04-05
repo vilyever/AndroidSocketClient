@@ -21,6 +21,10 @@ dependencies {
 }
 ```
 
+## Notice
+使用SocketClient接收消息时，是通过readLine的方式进行，即每一条消息为一行，故远程端发送的消息需在末尾加上换行符 '\n '或 '\r\n'
+使用SocketClient和SocketServer发送的String消息会自动在末尾添加 '\r\n' 换行符
+
 ## Usage
 ```java
 
