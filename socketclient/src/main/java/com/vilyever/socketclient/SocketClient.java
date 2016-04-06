@@ -183,8 +183,8 @@ public class SocketClient {
 
     private int remotePort;
     public SocketClient setRemotePort(int remotePort) {
-        if (!StringValidation.validateRegex(remoteIP, StringValidation.RegexIP)) {
-            ExceptionThrower.throwIllegalStateException("we need a correct remote IP to connect");
+        if (!StringValidation.validateRegex(String.format("%d", remotePort), StringValidation.RegexPort)) {
+            ExceptionThrower.throwIllegalStateException("we need a correct remote port to connect");
         }
         this.remotePort = remotePort;
         return this;

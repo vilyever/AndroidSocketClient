@@ -5,6 +5,8 @@ import android.support.annotation.NonNull;
 
 import com.vilyever.socketclient.SocketClient;
 import com.vilyever.socketclient.SocketPacket;
+import com.vilyever.socketclient.util.ExceptionThrower;
+import com.vilyever.socketclient.util.StringValidation;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -21,16 +23,49 @@ import java.util.HashMap;
 public class SocketServer implements SocketClient.SocketDelegate {
     final SocketServer self = this;
 
+    public static final int NoPort = -1;
+
     
     /* Constructors */
-    public SocketServer(int port) {
-        this.port = port;
+    public SocketServer() {
     }
 
-
     /* Public Methods */
-    public void beginListen() {
+    public boolean beginListen(int port) {
+        if (getListenThread().isAlive() && !getListenThread().isInterrupted()) {
+            return false;
+        }
+
+        setPort(port);
+        if (getRunningServerSocket() == null) {
+            return false;
+        }
+
         getListenThread().start();
+        return true;
+    }
+
+    public int beginListenFromPort(int port) {
+        if (getListenThread().isAlive() && !getListenThread().isInterrupted()) {
+            return NoPort;
+        }
+
+        while (port < 65536) {
+            setPort(port);
+            if (getRunningServerSocket() != null) {
+                beginListen(port);
+                return port;
+            }
+            port++;
+        }
+
+        return NoPort;
+    }
+
+    public void stopListen() {
+        if (getListenThread().isAlive() && !getListenThread().isInterrupted()) {
+            getListenThread().interrupt();
+        }
     }
 
     public String getIP() {
@@ -80,15 +115,22 @@ public class SocketServer implements SocketClient.SocketDelegate {
                 this.runningServerSocket = new ServerSocket(getPort());
             }
             catch (IOException e) {
-                e.printStackTrace();
+//                e.printStackTrace();
             }
         }
         return this.runningServerSocket;
     }
 
-    private final int port;
+    private int port = NoPort;
     public int getPort() {
         return this.port;
+    }
+    protected SocketServer setPort(int port) {
+        if (!StringValidation.validateRegex(String.format("%d", port), StringValidation.RegexPort)) {
+            ExceptionThrower.throwIllegalStateException("we need a correct remote port to listen");
+        }
+        this.port = port;
+        return this;
     }
 
     private ListenThread listenThread;
@@ -273,6 +315,11 @@ public class SocketServer implements SocketClient.SocketDelegate {
                 Socket socket = null;
                 try {
                     socket = self.getRunningServerSocket().accept();
+
+                    if (isInterrupted()) {
+                        return;
+                    }
+
                     SocketServerClient socketServerClient = self.getSocketServerClient(socket);
 
                     socketServerClient.registerSocketDelegate(self);

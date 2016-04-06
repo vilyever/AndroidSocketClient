@@ -17,7 +17,7 @@ public class MainActivity extends AppCompatActivity {
     private SocketServer socketServer;
     protected SocketServer getSocketServer() {
         if (this.socketServer == null) {
-            this.socketServer = new SocketServer(2333);
+            this.socketServer = new SocketServer();
         }
         return this.socketServer;
     }
@@ -25,7 +25,7 @@ public class MainActivity extends AppCompatActivity {
     private SocketClient localSocketClient;
     protected SocketClient getLocalSocketClient() {
         if (this.localSocketClient == null) {
-            this.localSocketClient = new SocketClient(IPUtil.getIPAddress(true), 2333);
+            this.localSocketClient = new SocketClient(IPUtil.getIPAddress(true), getSocketServer().getPort());
         }
         return this.localSocketClient;
     }
@@ -74,7 +74,7 @@ public class MainActivity extends AppCompatActivity {
                 self.setServerListeningSocketServerClient(null);
             }
         });
-        getSocketServer().beginListen();
+        getSocketServer().beginListenFromPort(80);
 
         getLocalSocketClient().registerSocketDelegate(new SocketClient.SocketDelegate() {
             @Override
