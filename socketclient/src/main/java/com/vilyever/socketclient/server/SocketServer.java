@@ -32,7 +32,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
 
     /* Public Methods */
     public boolean beginListen(int port) {
-        if (getListenThread().isAlive() && !getListenThread().isInterrupted()) {
+        if (isListening()) {
             return false;
         }
 
@@ -46,7 +46,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     public int beginListenFromPort(int port) {
-        if (getListenThread().isAlive() && !getListenThread().isInterrupted()) {
+        if (isListening()) {
             return NoPort;
         }
 
@@ -63,9 +63,19 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     public void stopListen() {
-        if (getListenThread().isAlive() && !getListenThread().isInterrupted()) {
+        if (isListening()) {
             getListenThread().interrupt();
+            try {
+                getRunningServerSocket().close();
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
         }
+    }
+
+    public boolean isListening() {
+        return getListenThread().isRunning();
     }
 
     public String getIP() {
@@ -304,21 +314,30 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     /* Private Methods */
+    private boolean checkServerSocketAvailable() {
+        return getRunningServerSocket() != null && !getRunningServerSocket().isClosed();
+    }
 
 
     /* Inner Classes */
-    private class ListenThread extends Thread {
+    private class ListenThread extends Thread  {
+        private boolean running;
+        protected ListenThread setRunning(boolean running) {
+            this.running = running;
+            return this;
+        }
+        protected boolean isRunning() {
+            return this.running;
+        }
+
         @Override
         public void run() {
             super.run();
-            while (!isInterrupted()) {
+            setRunning(true);
+            while (!Thread.interrupted() && self.checkServerSocketAvailable()) {
                 Socket socket = null;
                 try {
                     socket = self.getRunningServerSocket().accept();
-
-                    if (isInterrupted()) {
-                        return;
-                    }
 
                     SocketServerClient socketServerClient = self.getSocketServerClient(socket);
 
@@ -332,7 +351,8 @@ public class SocketServer implements SocketClient.SocketDelegate {
                     e.printStackTrace();
                 }
             }
-    
+
+            setRunning(false);
         }
     }
 }
