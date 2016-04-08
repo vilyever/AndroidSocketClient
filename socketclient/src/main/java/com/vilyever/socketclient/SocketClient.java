@@ -193,6 +193,15 @@ public class SocketClient {
         return this.remotePort;
     }
 
+    private boolean supportReadLine;
+    public SocketClient setSupportReadLine(boolean supportReadLine) {
+        this.supportReadLine = supportReadLine;
+        return this;
+    }
+    public boolean isSupportReadLine() {
+        return this.supportReadLine;
+    }
+
     private int connectionTimeout;
     public SocketClient setConnectionTimeout(int connectionTimeout) {
         if (connectionTimeout < 0) {
@@ -589,7 +598,30 @@ public class SocketClient {
                 bufferedReader = new BufferedReader(new InputStreamReader(self.getRunningSocket().getInputStream(), "UTF-8"));
 
                 while (self.isConnected() && !isInterrupted()) {
-                    String response = bufferedReader.readLine();
+                    String response = null;
+                    if (self.isSupportReadLine()) {
+                        response = bufferedReader.readLine();
+                    }
+                    else {
+                        StringBuilder stringBuilder = new StringBuilder();
+                        char[] chars = new char[1024 * 4];
+                        int n = 0;
+                        while (-1 != (n = bufferedReader.read(chars, 0, chars.length))) {
+                            // remove cr
+                            while (n > 0 && (chars[n - 1] ==  '\r' || chars[n - 1] ==  '\n')) {
+                                n--;
+                            }
+
+                            stringBuilder.append(chars, 0, n);
+
+                            // if last read clear the buffer
+                            if (n < chars.length || !bufferedReader.ready()) {
+                                break;
+                            }
+                        }
+
+                        response = stringBuilder.toString();
+                    }
 
                     if (response == null) {
                         self.disconnect();
