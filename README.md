@@ -48,7 +48,9 @@ socketClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
 
     @Override
     public void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket) {
-
+        byte[] data = responsePacket.getData(); // 获取byte[]数据
+        String msg = responsePacket.getMessage(); // 使用默认编码获取String消息
+        String msg2 = responsePacket.getMessage("GBK"); // 使用GBK编码获取String消息
     }
 });
 
