@@ -17,16 +17,16 @@ Step 2. Add the dependency in the form
 
 ```gradle
 dependencies {
-  compile 'com.github.vilyever:AndroidSocketClient:1.2.5'
+  compile 'com.github.vilyever:AndroidSocketClient:1.3.0'
 }
 ```
 
-## Notice
-使用SocketClient接收消息时，是通过readLine的方式进行，即每一条消息为一行，故远程端发送的消息需在末尾加上换行符 '\n '或 '\r\n'
+## Updates
+* 1.3.0
+修改消息收发机制
 </br>
-使用SocketClient和SocketServer发送的String消息会自动在末尾添加 '\r\n' 换行符
-</br>
-1.2.5版本后可以选择是否使用readLine读取消息，SocketClient.setSupportReadLine()，默认不使用;
+接收消息回调参数由String改为SocketResponsePacket，提供byte[]数据
+获取String消息调用SocketResponsePacket.getMessage()实时获取
 
 ## Usage
 ```java
@@ -35,7 +35,9 @@ SocketClient socketClient = new SocketClient("192.168.1.1", 80);
 socketClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
     @Override
     public void onConnected(SocketClient client) {
-
+        socketClient.send("message"); // 发送String消息，使用默认编码
+        socketClient.send("message", "GBK"); // 发送String消息，使用GBK编码
+        socketClient.send("message".getBytes()); // 发送byte[]消息
     }
 
     @Override
@@ -44,12 +46,29 @@ socketClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
     }
 
     @Override
-    public void onResponse(SocketClient client, @NonNull String response) {
+    public void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket) {
 
     }
 });
 
-socketClient.connect();
+socketClient.setConnectionTimeout(1000 * 15); // 设置连接超时时长
+
+socketClient.setHeartBeatInterval(1000 * 30); // 设置心跳包发送间隔
+
+socketClient.setRemoteNoReplyAliveTimeout(1000 * 60); // 设置远程端在多长时间没有消息发送到本地时自动断开连接
+
+socketClient.registerQueryResponse("query", "response"); // 设置自动应答键值对，即收到"query"时自动发送"response"
+
+socketClient.setSupportReadLine(false); // 设置是否支持对每条消息添加换行符分割，默认为true
+
+socketClient.setCharsetName("UTF-8"); // 设置发送String消息的默认编码
+
+socketClient.connect(); // 连接，异步进行
+
+socketClient.disconnect(); // 断开连接
+
+socketClient.getState(); // 获取当前状态，Connecting, Connected, Disconnected
+
 ```
 
 ## License

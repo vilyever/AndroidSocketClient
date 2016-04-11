@@ -65,7 +65,8 @@ public class SocketClient {
             return;
         }
 
-        if (!getRunningSocket().isClosed()) {
+        if (!getRunningSocket().isClosed()
+                || isConnecting()) {
             try {
                 getRunningSocket().getOutputStream().close();
                 getRunningSocket().getInputStream().close();
