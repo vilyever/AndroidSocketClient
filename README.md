@@ -23,6 +23,7 @@ dependencies {
 
 ## Updates
 * 1.3.0
+</br>
 修改消息收发机制
 </br>
 接收消息回调参数由String改为SocketResponsePacket，提供byte[]数据
