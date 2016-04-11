@@ -1,14 +1,21 @@
 package com.vilyever.socketclient.server;
 
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.support.annotation.CallSuper;
 import android.support.annotation.NonNull;
+import android.support.annotation.WorkerThread;
 
 import com.vilyever.socketclient.SocketClient;
 import com.vilyever.socketclient.SocketPacket;
+import com.vilyever.socketclient.SocketResponsePacket;
+import com.vilyever.socketclient.util.CharsetNames;
 import com.vilyever.socketclient.util.ExceptionThrower;
 import com.vilyever.socketclient.util.StringValidation;
 
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -24,6 +31,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
     final SocketServer self = this;
 
     public static final int NoPort = -1;
+    public static final int MaxPort = 65535;
 
     
     /* Constructors */
@@ -41,6 +49,8 @@ public class SocketServer implements SocketClient.SocketDelegate {
             return false;
         }
 
+        onSocketServerBeginListen();
+
         getListenThread().start();
         return true;
     }
@@ -50,10 +60,8 @@ public class SocketServer implements SocketClient.SocketDelegate {
             return NoPort;
         }
 
-        while (port < 65536) {
-            setPort(port);
-            if (getRunningServerSocket() != null) {
-                beginListen(port);
+        while (port <= MaxPort) {
+            if (beginListen(port)) {
                 return port;
             }
             port++;
@@ -139,6 +147,11 @@ public class SocketServer implements SocketClient.SocketDelegate {
         if (!StringValidation.validateRegex(String.format("%d", port), StringValidation.RegexPort)) {
             ExceptionThrower.throwIllegalStateException("we need a correct remote port to listen");
         }
+
+        if (isListening()) {
+            return this;
+        }
+
         this.port = port;
         return this;
     }
@@ -151,6 +164,36 @@ public class SocketServer implements SocketClient.SocketDelegate {
             this.listenThread = new ListenThread();
         }
         return this.listenThread;
+    }
+
+    /**
+     * 统一配置是否支持按行读取消息
+     * 若否则读取每一次缓冲返回一次消息
+     * 即受到的消息末尾是 '\r\n' 符号
+     * 此操作可以解决发送方发送过快时缓冲池内存有多条信息
+     */
+    private boolean supportReadLine = true;
+    public SocketServer setSupportReadLine(boolean supportReadLine) {
+        this.supportReadLine = supportReadLine;
+        return this;
+    }
+    public boolean isSupportReadLine() {
+        return this.supportReadLine;
+    }
+
+    /**
+     * 统一配置默认的编码格式
+     */
+    private String charsetName;
+    public SocketServer setCharsetName(String charsetName) {
+        this.charsetName = charsetName;
+        return this;
+    }
+    public String getCharsetName() {
+        if (this.charsetName == null) {
+            this.charsetName = CharsetNames.UTF_8;
+        }
+        return this.charsetName;
     }
 
     /**
@@ -242,10 +285,22 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     public interface SocketServerDelegate {
+        void onServerBeginListen(SocketServer socketServer, int port);
+        void onServerStopListen(SocketServer socketServer, int port);
         void onClientConnected(SocketServer socketServer, SocketServerClient socketServerClient);
         void onClientDisconnected(SocketServer socketServer, SocketServerClient socketServerClient);
 
         class SimpleSocketServerDelegate implements SocketServerDelegate {
+            @Override
+            public void onServerBeginListen(SocketServer socketServer, int port) {
+
+            }
+
+            @Override
+            public void onServerStopListen(SocketServer socketServer, int port) {
+
+            }
+
             @Override
             public void onClientConnected(SocketServer socketServer, SocketServerClient socketServerClient) {
 
@@ -254,6 +309,49 @@ public class SocketServer implements SocketClient.SocketDelegate {
             @Override
             public void onClientDisconnected(SocketServer socketServer, SocketServerClient socketServerClient) {
 
+            }
+        }
+    }
+
+    private UIHandler uiHandler;
+    protected UIHandler getUiHandler() {
+        if (this.uiHandler == null) {
+            this.uiHandler = new UIHandler(this);
+        }
+        return this.uiHandler;
+    }
+    protected static class UIHandler extends Handler {
+        private WeakReference<SocketServer> referenceSocketServer;
+
+        public UIHandler(@NonNull SocketServer referenceSocketClient) {
+            super(Looper.getMainLooper());
+
+            this.referenceSocketServer = new WeakReference<SocketServer>(referenceSocketClient);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+
+            switch (MessageType.typeFromWhat(msg.what)) {
+                case StopListen:
+                    this.referenceSocketServer.get().onSocketServerStopListen();
+                    break;
+                case ClientConnected:
+                    this.referenceSocketServer.get().onSocketServerClientConnected((SocketServerClient) msg.obj);
+                    break;
+            }
+        }
+
+        public enum MessageType {
+            StopListen, ClientConnected;
+
+            public static MessageType typeFromWhat(int what) {
+                return MessageType.values()[what];
+            }
+
+            public int what() {
+                return this.ordinal();
             }
         }
     }
@@ -274,19 +372,47 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     @Override
-    public void onResponse(SocketClient client, @NonNull String response) {
+    public void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket) {
 
     }
 
 
     /* Protected Methods */
+    @WorkerThread
     protected SocketServerClient getSocketServerClient(Socket socket) {
         return new SocketServerClient(socket);
     }
 
     @CallSuper
-    protected void onSocketServerClientConnected(SocketServerClient socketServerClient) {
+    protected void onSocketServerBeginListen() {
 
+        ArrayList<SocketServerDelegate> copyList =
+                (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
+        int count = copyList.size();
+        for (int i = 0; i < count; ++i) {
+            copyList.get(i).onServerBeginListen(this, getPort());
+        }
+    }
+
+    @CallSuper
+    protected void onSocketServerStopListen() {
+
+        ArrayList<SocketServerDelegate> copyList =
+                (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
+        int count = copyList.size();
+        for (int i = 0; i < count; ++i) {
+            copyList.get(i).onServerStopListen(this, getPort());
+        }
+    }
+
+    @CallSuper
+    protected void onSocketServerClientConnected(SocketServerClient socketServerClient) {
+        getRunningSocketServerClients().add(socketServerClient);
+
+        socketServerClient.registerSocketDelegate(this);
+
+        socketServerClient.setSupportReadLine(isSupportReadLine());
+        socketServerClient.setCharsetName(getCharsetName());
         socketServerClient.setHeartBeatMessage(getHeartBeatMessage());
         socketServerClient.setHeartBeatInterval(getHeartBeatInterval());
         socketServerClient.setRemoteNoReplyAliveTimeout(getRemoteNoReplyAliveTimeout());
@@ -341,11 +467,10 @@ public class SocketServer implements SocketClient.SocketDelegate {
 
                     SocketServerClient socketServerClient = self.getSocketServerClient(socket);
 
-                    socketServerClient.registerSocketDelegate(self);
-
-                    self.getRunningSocketServerClients().add(socketServerClient);
-
-                    self.onSocketServerClientConnected(socketServerClient);
+                    Message message = Message.obtain();
+                    message.what = UIHandler.MessageType.ClientConnected.what();
+                    message.obj = socketServerClient;
+                    self.getUiHandler().sendMessage(message);
                 }
                 catch (IOException e) {
                     e.printStackTrace();
@@ -353,6 +478,10 @@ public class SocketServer implements SocketClient.SocketDelegate {
             }
 
             setRunning(false);
+
+            Message message = Message.obtain();
+            message.what = UIHandler.MessageType.StopListen.what();
+            self.getUiHandler().sendMessage(message);
         }
     }
 }

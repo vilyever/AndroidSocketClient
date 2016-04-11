@@ -8,18 +8,20 @@ import android.support.annotation.CallSuper;
 import android.support.annotation.NonNull;
 import android.support.annotation.UiThread;
 
+import com.vilyever.socketclient.util.CharsetNames;
 import com.vilyever.socketclient.util.ExceptionThrower;
+import com.vilyever.socketclient.util.SocketInputReader;
 import com.vilyever.socketclient.util.StringValidation;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -82,21 +84,48 @@ public class SocketClient {
             }
         }
 
-        if (!this.sendThread.isInterrupted() && this.sendThread.isAlive()) {
-            this.sendThread.interrupt();
+        if (this.connectionThread != null) {
+            this.connectionThread.interrupt();
+            this.connectionThread = null;
         }
-        if (!this.receiveThread.isInterrupted() && this.receiveThread.isAlive()) {
+        if (this.sendThread != null) {
+            this.sendThread.interrupt();
+            this.sendThread = null;
+        }
+        if (this.receiveThread != null) {
             this.receiveThread.interrupt();
+            this.receiveThread = null;
         }
 
         getUiHandler().sendEmptyMessage(UIHandler.MessageType.Disconnected.what());
     }
 
-    public SocketPacket send(String message) {
+    /**
+     * @param data
+     * @return
+     */
+    public SocketPacket send(byte[] data) {
         if (!isConnected()) {
             return null;
         }
-        SocketPacket socketPacket = new SocketPacket(message);
+        SocketPacket socketPacket = new SocketPacket(data);
+        getSendThread().enqueueSocketPacket(socketPacket);
+        return socketPacket;
+    }
+
+    public SocketPacket send(String message) {
+        return send(message, getCharsetName());
+    }
+
+    public SocketPacket send(String message, String charsetName) {
+        return send(message, Charset.forName(charsetName));
+    }
+
+    public SocketPacket send(String message, Charset charset) {
+        if (!isConnected()) {
+            return null;
+        }
+        SocketPacket socketPacket = new SocketPacket(message, charset, isSupportReadLine());
         getSendThread().enqueueSocketPacket(socketPacket);
         return socketPacket;
     }
@@ -156,6 +185,46 @@ public class SocketClient {
         return this;
     }
 
+    /**
+     * 注册心跳包监听回调
+     * @param heartBeatDelegate 回调接收者
+     */
+    public SocketClient registerSocketHeartBeatDelegate(SocketHeartBeatDelegate heartBeatDelegate) {
+        if (!getSocketHeartBeatDelegates().contains(heartBeatDelegate)) {
+            getSocketHeartBeatDelegates().add(heartBeatDelegate);
+        }
+        return this;
+    }
+
+    /**
+     * 取消注册心跳包监听回调
+     * @param heartBeatDelegate 回调接收者
+     */
+    public SocketClient removeSocketHeartBeatDelegate(SocketDelegate heartBeatDelegate) {
+        getSocketHeartBeatDelegates().remove(heartBeatDelegate);
+        return this;
+    }
+
+    /**
+     * 注册自动应答监听回调
+     * @param pollingDelegate 回调接收者
+     */
+    public SocketClient registerSocketPollingDelegate(SocketPollingDelegate pollingDelegate) {
+        if (!getSocketPollingDelegate().contains(pollingDelegate)) {
+            getSocketPollingDelegate().add(pollingDelegate);
+        }
+        return this;
+    }
+
+    /**
+     * 取消注册自动应答监听回调
+     * @param pollingDelegate 回调接收者
+     */
+    public SocketClient removeSocketPollingDelegate(SocketPollingDelegate pollingDelegate) {
+        getSocketPollingDelegate().remove(pollingDelegate);
+        return this;
+    }
+
     /* Properties */
     private Socket runningSocket;
     protected Socket getRunningSocket() {
@@ -193,13 +262,34 @@ public class SocketClient {
         return this.remotePort;
     }
 
-    private boolean supportReadLine;
+    /**
+     * 设置是否支持按行读取消息
+     * 若否则读取每一次缓冲返回一次消息
+     * 即受到的消息末尾是 '\r\n' 符号
+     * 此操作可以解决发送方发送过快时缓冲池内存有多条信息
+     */
+    private boolean supportReadLine = true;
     public SocketClient setSupportReadLine(boolean supportReadLine) {
         this.supportReadLine = supportReadLine;
         return this;
     }
     public boolean isSupportReadLine() {
         return this.supportReadLine;
+    }
+
+    /**
+     * 设置默认的编码格式
+     */
+    private String charsetName;
+    public SocketClient setCharsetName(String charsetName) {
+        this.charsetName = charsetName;
+        return this;
+    }
+    public String getCharsetName() {
+        if (this.charsetName == null) {
+            this.charsetName = CharsetNames.UTF_8;
+        }
+        return this.charsetName;
     }
 
     private int connectionTimeout;
@@ -214,6 +304,9 @@ public class SocketClient {
         return this.connectionTimeout;
     }
 
+    /**
+     * 远程端在一定时间间隔没有消息后自动断开
+     */
     private long remoteNoReplyAliveTimeout = DefaultRemoteNoReplyAliveTimeout;
     public SocketClient setRemoteNoReplyAliveTimeout(long remoteNoReplyAliveTimeout) {
         if (remoteNoReplyAliveTimeout < 0) {
@@ -324,9 +417,7 @@ public class SocketClient {
 
     private ConnectionThread connectionThread;
     protected ConnectionThread getConnectionThread() {
-        if (this.connectionThread == null
-                || this.connectionThread.isInterrupted()
-                || !this.connectionThread.isAlive()) {
+        if (this.connectionThread == null) {
             this.connectionThread = new ConnectionThread();
         }
         return this.connectionThread;
@@ -334,9 +425,7 @@ public class SocketClient {
 
     private SendThread sendThread;
     protected SendThread getSendThread() {
-        if (this.sendThread == null
-                || this.sendThread.isInterrupted()
-                || !this.sendThread.isAlive()) {
+        if (this.sendThread == null) {
             this.sendThread = new SendThread();
         }
         return this.sendThread;
@@ -344,9 +433,7 @@ public class SocketClient {
 
     private ReceiveThread receiveThread;
     protected ReceiveThread getReceiveThread() {
-        if (this.receiveThread == null
-                || this.receiveThread.isInterrupted()
-                || !this.receiveThread.isAlive()) {
+        if (this.receiveThread == null) {
             this.receiveThread = new ReceiveThread();
         }
         return this.receiveThread;
@@ -363,7 +450,7 @@ public class SocketClient {
     public interface SocketDelegate {
         void onConnected(SocketClient client);
         void onDisconnected(SocketClient client);
-        void onResponse(SocketClient client, @NonNull String response);
+        void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket);
 
         class SimpleSocketDelegate implements SocketDelegate {
             @Override
@@ -377,7 +464,49 @@ public class SocketClient {
             }
 
             @Override
-            public void onResponse(SocketClient client, @NonNull String response) {
+            public void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket) {
+
+            }
+        }
+    }
+
+    private ArrayList<SocketHeartBeatDelegate> socketHeartBeatDelegates;
+    protected ArrayList<SocketHeartBeatDelegate> getSocketHeartBeatDelegates() {
+        if (this.socketHeartBeatDelegates == null) {
+            this.socketHeartBeatDelegates = new ArrayList<SocketHeartBeatDelegate>();
+        }
+        return this.socketHeartBeatDelegates;
+    }
+    public interface SocketHeartBeatDelegate {
+        void onHeartBeat(SocketClient socketClient);
+
+        class SimpleSocketHeartBeatDelegate implements SocketHeartBeatDelegate {
+            @Override
+            public void onHeartBeat(SocketClient socketClient) {
+
+            }
+        }
+    }
+
+    private ArrayList<SocketPollingDelegate> socketPollingDelegate;
+    protected ArrayList<SocketPollingDelegate> getSocketPollingDelegate() {
+        if (this.socketPollingDelegate == null) {
+            this.socketPollingDelegate = new ArrayList<SocketPollingDelegate>();
+        }
+        return this.socketPollingDelegate;
+    }
+    public interface SocketPollingDelegate {
+        void onPollingQuery(SocketClient socketClient, String pollingQuery);
+        void onPollingResponse(SocketClient socketClient, String pollingResponse);
+
+        class SimpleSocketPollingDelegate implements SocketPollingDelegate {
+            @Override
+            public void onPollingQuery(SocketClient socketClient, String pollingQuery) {
+
+            }
+
+            @Override
+            public void onPollingResponse(SocketClient socketClient, String pollingResponse) {
 
             }
         }
@@ -411,7 +540,7 @@ public class SocketClient {
                     this.referenceSocketClient.get().onDisconnected();
                     break;
                 case ReceiveResponse:
-                    this.referenceSocketClient.get().onReceiveResponse(msg.obj.toString());
+                    this.referenceSocketClient.get().onReceiveResponse((SocketResponsePacket) msg.obj);
                     break;
             }
         }
@@ -474,18 +603,62 @@ public class SocketClient {
 
     @UiThread
     @CallSuper
-    protected void onReceiveResponse(@NonNull String message) {
+    protected void onReceiveResponse(@NonNull SocketResponsePacket responsePacket) {
         setLastReceiveMessageTime(System.currentTimeMillis());
 
-        if (getQueryResponseMap().containsKey(message)) {
-            send(getQueryResponseMap().get(message));
+        if (responsePacket.isMatch(getHeartBeatMessage())) {
+            onReceiveHeartBeat();
+            return;
+        }
+
+        for (Map.Entry<String, String> entry : getQueryResponseMap().entrySet()) {
+            if (responsePacket.isMatch(entry.getKey())) {
+                onReceivePollingQuery(entry.getKey());
+                return;
+            }
+            if (responsePacket.isMatch(entry.getValue())) {
+                onReceivePollingResponse(entry.getValue());
+                return;
+            }
         }
 
         ArrayList<SocketDelegate> delegatesCopy =
                 (ArrayList<SocketDelegate>) getSocketDelegates().clone();
         int count = delegatesCopy.size();
         for (int i = 0; i < count; ++i) {
-            delegatesCopy.get(i).onResponse(this, message);
+            delegatesCopy.get(i).onResponse(this, responsePacket);
+        }
+    }
+
+    protected void onReceiveHeartBeat() {
+
+        ArrayList<SocketHeartBeatDelegate> delegatesCopy =
+                (ArrayList<SocketHeartBeatDelegate>) getSocketHeartBeatDelegates().clone();
+        int count = delegatesCopy.size();
+        for (int i = 0; i < count; ++i) {
+            delegatesCopy.get(i).onHeartBeat(this);
+        }
+    }
+
+    @CallSuper
+    protected void onReceivePollingQuery(String pollingQuery) {
+        send(getQueryResponseMap().get(pollingQuery));
+
+        ArrayList<SocketPollingDelegate> delegatesCopy =
+                (ArrayList<SocketPollingDelegate>) getSocketPollingDelegate().clone();
+        int count = delegatesCopy.size();
+        for (int i = 0; i < count; ++i) {
+            delegatesCopy.get(i).onPollingQuery(this, pollingQuery);
+        }
+    }
+
+    protected void onReceivePollingResponse(String pollingResponse) {
+
+        ArrayList<SocketPollingDelegate> delegatesCopy =
+                (ArrayList<SocketPollingDelegate>) getSocketPollingDelegate().clone();
+        int count = delegatesCopy.size();
+        for (int i = 0; i < count; ++i) {
+            delegatesCopy.get(i).onPollingResponse(this, pollingResponse);
         }
     }
 
@@ -524,6 +697,8 @@ public class SocketClient {
             }
             catch (IOException e) {
                 e.printStackTrace();
+
+                self.disconnect();
             }
         }
     }
@@ -564,15 +739,23 @@ public class SocketClient {
         public void run() {
             super.run();
 
-            while (self.isConnected() && !isInterrupted()) {
+            while (self.isConnected() && !Thread.interrupted()) {
                 SocketPacket packet;
                 while ((packet = getSendingQueue().poll()) != null) {
+                    long lastSendTime = System.currentTimeMillis();
                     try {
-                        self.getRunningSocket().getOutputStream().write(packet.getPacket());
+                        self.getRunningSocket().getOutputStream().write(packet.getData());
                         self.getRunningSocket().getOutputStream().flush();
                     }
                     catch (IOException e) {
-//                        e.printStackTrace();
+                        e.printStackTrace();
+                    }
+
+                    // 若不支持换行符分割消息，增加每一条消息的发送间隔，此举在本地java端socket互连时可解决快速发送时多条消息混杂问题
+                    if (!self.isSupportReadLine()) {
+                        while (System.currentTimeMillis() - lastSendTime < 3) {
+                            Thread.yield();
+                        }
                     }
                 }
 
@@ -593,61 +776,26 @@ public class SocketClient {
         public void run() {
             super.run();
 
-            BufferedReader bufferedReader = null;
             try {
-                bufferedReader = new BufferedReader(new InputStreamReader(self.getRunningSocket().getInputStream(), "UTF-8"));
+                SocketInputReader inputReader = new SocketInputReader(self.getRunningSocket().getInputStream());
 
-                while (self.isConnected() && !isInterrupted()) {
-                    String response = null;
-                    if (self.isSupportReadLine()) {
-                        response = bufferedReader.readLine();
-                    }
-                    else {
-                        StringBuilder stringBuilder = new StringBuilder();
-                        char[] chars = new char[1024 * 4];
-                        int n = 0;
-                        while (-1 != (n = bufferedReader.read(chars, 0, chars.length))) {
-                            // remove cr
-                            while (n > 0 && (chars[n - 1] ==  '\r' || chars[n - 1] ==  '\n')) {
-                                n--;
-                            }
-
-                            stringBuilder.append(chars, 0, n);
-
-                            // if last read clear the buffer
-                            if (n < chars.length || !bufferedReader.ready()) {
-                                break;
-                            }
-                        }
-
-                        response = stringBuilder.toString();
-                    }
-
-                    if (response == null) {
+                while (self.isConnected() && !Thread.interrupted()) {
+                    byte[] result = inputReader.readBytes();
+                    if (result == null) {
                         self.disconnect();
                         break;
                     }
 
+                    SocketResponsePacket responsePacket = new SocketResponsePacket(result, self.getCharsetName());
+
                     Message message = Message.obtain();
                     message.what = UIHandler.MessageType.ReceiveResponse.what();
-                    message.obj = response;
+                    message.obj = responsePacket;
                     self.getUiHandler().sendMessage(message);
                 }
-
-                bufferedReader.close();
             }
             catch (IOException e) {
-//                e.printStackTrace();
-
-                if (bufferedReader != null) {
-                    try {
-                        bufferedReader.close();
-                    }
-                    catch (IOException e1) {
-//                        e1.printStackTrace();
-                    }
-                }
-
+                e.printStackTrace();
                 self.disconnect();
             }
         }

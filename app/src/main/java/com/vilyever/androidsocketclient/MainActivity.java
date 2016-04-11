@@ -6,10 +6,12 @@ import android.support.v7.app.AppCompatActivity;
 
 import com.vilyever.logger.Logger;
 import com.vilyever.socketclient.SocketClient;
-import com.vilyever.socketclient.SocketPacket;
+import com.vilyever.socketclient.SocketResponsePacket;
 import com.vilyever.socketclient.server.SocketServer;
 import com.vilyever.socketclient.server.SocketServerClient;
 import com.vilyever.socketclient.util.IPUtil;
+
+import java.io.UnsupportedEncodingException;
 
 public class MainActivity extends AppCompatActivity {
     final MainActivity self = this;
@@ -46,28 +48,38 @@ public class MainActivity extends AppCompatActivity {
 
         getSocketServer().registerSocketServerDelegate(new SocketServer.SocketServerDelegate() {
             @Override
+            public void onServerBeginListen(SocketServer socketServer, int port) {
+                Logger.log("begin listen " + port);
+            }
+
+            @Override
+            public void onServerStopListen(SocketServer socketServer, int port) {
+                Logger.log("stop listen " + port);
+            }
+
+            @Override
             public void onClientConnected(SocketServer socketServer, SocketServerClient socketServerClient) {
                 Logger.log("socketServer onClientConnected");
-        
+
                 self.setServerListeningSocketServerClient(socketServerClient);
                 socketServerClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
                     @Override
                     public void onConnected(SocketClient client) {
-                
+
                     }
-            
+
                     @Override
                     public void onDisconnected(SocketClient client) {
                         Logger.log("serverListeningSocketServerClient onDisconnected");
                     }
-            
+
                     @Override
-                    public void onResponse(SocketClient client, @NonNull String response) {
-                        Logger.log("serverListeningSocketServerClient onResponse \n" + response);
+                    public void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket) {
+                        Logger.log("serverListeningSocketServerClient onResponse \n" + responsePacket.getMessage());
                     }
                 });
             }
-    
+
             @Override
             public void onClientDisconnected(SocketServer socketServer, SocketServerClient socketServerClient) {
                 Logger.log("socketServer onClientDisconnected");
@@ -80,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onConnected(SocketClient client) {
                 Logger.log("localSocketClient onConnected");
+                getLocalSocketClient().send("再见");
             }
 
             @Override
@@ -88,8 +101,8 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onResponse(SocketClient client, @NonNull String response) {
-                Logger.log("localSocketClient onResponse \n" + response);
+            public void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket) {
+                Logger.log("localSocketClient onResponse \n" + responsePacket.getMessage());
             }
         });
 
@@ -98,16 +111,15 @@ public class MainActivity extends AppCompatActivity {
         getWindow().getDecorView().postDelayed(new Runnable() {
             @Override
             public void run() {
-                getLocalSocketClient().send("haha test");
+                getLocalSocketClient().send("你好");
+                try {
+                    getLocalSocketClient().send("HELLO".getBytes("UTF-8"));
+                }
+                catch (UnsupportedEncodingException e) {
+                    e.printStackTrace();
+                }
             }
-        }, 15 * 1000);
-        getWindow().getDecorView().postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                getLocalSocketClient().send(SocketPacket.DefaultPollingQueryMessage);
-//                getLocalSocketClient().disconnect();
-            }
-        }, 30 * 1000);
+        }, 5 * 1000);
     }
 
 }
