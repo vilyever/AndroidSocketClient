@@ -26,6 +26,7 @@ dependencies {
 修改消息收发机制
 </br>
 接收消息回调参数由String改为SocketResponsePacket，提供byte[]数据
+</br>
 获取String消息调用SocketResponsePacket.getMessage()实时获取
 
 ## Usage
