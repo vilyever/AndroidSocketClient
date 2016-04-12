@@ -49,8 +49,9 @@ public class SocketServer implements SocketClient.SocketDelegate {
             return false;
         }
 
-        getListenThread().start();
         onSocketServerBeginListen();
+        getListenThread().start();
+
         return true;
     }
 
@@ -79,10 +80,6 @@ public class SocketServer implements SocketClient.SocketDelegate {
                 e.printStackTrace();
             }
         }
-    }
-
-    public boolean isListening() {
-        return getListenThread().isRunning();
     }
 
     public String getIP() {
@@ -154,12 +151,19 @@ public class SocketServer implements SocketClient.SocketDelegate {
         this.port = port;
         return this;
     }
+    
+    private boolean listening;
+    protected SocketServer setListening(boolean listening) {
+        this.listening = listening;
+        return this; 
+    }
+    public boolean isListening() {
+        return this.listening;
+    }
 
     private ListenThread listenThread;
     protected ListenThread getListenThread() {
-        if (this.listenThread == null
-            || this.listenThread.isInterrupted()
-            || !this.listenThread.isAlive()) {
+        if (this.listenThread == null) {
             this.listenThread = new ListenThread();
         }
         return this.listenThread;
@@ -384,6 +388,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
 
     @CallSuper
     protected void onSocketServerBeginListen() {
+        setListening(true);
 
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
@@ -395,6 +400,8 @@ public class SocketServer implements SocketClient.SocketDelegate {
 
     @CallSuper
     protected void onSocketServerStopListen() {
+        setListening(false);
+        this.listenThread = null;
 
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
