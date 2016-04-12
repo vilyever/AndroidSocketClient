@@ -17,12 +17,12 @@ Step 2. Add the dependency in the form
 
 ```gradle
 dependencies {
-  compile 'com.github.vilyever:AndroidSocketClient:1.3.2'
+  compile 'com.github.vilyever:AndroidSocketClient:1.3.3'
 }
 ```
 
 ## Updates
-* 1.3.2
+* 1.3.3
 </br>
 修复SocketServer启动监听回调时机问题
 
