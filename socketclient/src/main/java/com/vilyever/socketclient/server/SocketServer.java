@@ -402,6 +402,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
     protected void onSocketServerStopListen() {
         setListening(false);
         this.listenThread = null;
+        this.runningServerSocket = null;
 
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
