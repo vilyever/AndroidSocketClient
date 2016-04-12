@@ -49,9 +49,8 @@ public class SocketServer implements SocketClient.SocketDelegate {
             return false;
         }
 
-        onSocketServerBeginListen();
-
         getListenThread().start();
+        onSocketServerBeginListen();
         return true;
     }
 
