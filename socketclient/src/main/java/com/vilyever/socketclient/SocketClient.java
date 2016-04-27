@@ -19,9 +19,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -46,8 +44,6 @@ public class SocketClient {
         setRemoteIP(remoteIP);
         setRemotePort(remotePort);
         setConnectionTimeout(connectionTimeout);
-
-        registerQueryResponse(SocketPacket.DefaultPollingQueryMessage, SocketPacket.DefaultPollingResponseMessage);
     }
 
     /* Public Methods */
@@ -102,6 +98,15 @@ public class SocketClient {
     }
 
     /**
+     * 与{@link #send(byte[])} 相同，增加一个别名
+     * @param data
+     * @return
+     */
+    public SocketPacket sendBytes(byte[] data) {
+        return send(data);
+    }
+
+    /**
      * @param data
      * @return
      */
@@ -109,9 +114,25 @@ public class SocketClient {
         if (!isConnected()) {
             return null;
         }
-        SocketPacket socketPacket = new SocketPacket(data);
+        SocketPacket socketPacket = new SocketPacket(data, isSupportReadLine());
         getSendThread().enqueueSocketPacket(socketPacket);
         return socketPacket;
+    }
+
+    /**
+     * 与{@link #send(String)} 相同，增加一个别名
+     * @return
+     */
+    public SocketPacket sendString(String message) {
+        return send(message);
+    }
+
+    /**
+     * 与{@link #send(String, String)} 相同，增加一个别名
+     * @return
+     */
+    public SocketPacket sendString(String message, String charsetName) {
+        return send(message, charsetName);
     }
 
     public SocketPacket send(String message) {
@@ -122,7 +143,7 @@ public class SocketClient {
         return send(message, Charset.forName(charsetName));
     }
 
-    public SocketPacket send(String message, Charset charset) {
+    protected SocketPacket send(String message, Charset charset) {
         if (!isConnected()) {
             return null;
         }
@@ -149,29 +170,6 @@ public class SocketClient {
 
     public boolean isConnecting() {
         return getState() == State.Connecting;
-    }
-
-    public SocketClient registerQueryResponse(String query, String response) {
-        return registerQueryResponse(query, response, getCharsetName());
-    }
-
-    public SocketClient registerQueryResponse(String query, String response, String charsetName) {
-        return registerQueryResponse(query.getBytes(Charset.forName(charsetName)), response.getBytes(Charset.forName(charsetName)));
-    }
-
-    public SocketClient registerQueryResponse(byte[] query, byte[] response) {
-        getQueryResponseMap().put(query, response);
-        return this;
-    }
-
-    public SocketClient registerQueryResponse(HashMap<byte[], byte[]> queryResponseMap) {
-        getQueryResponseMap().putAll(queryResponseMap);
-        return this;
-    }
-
-    public SocketClient removeQueryResponse(String query) {
-        getQueryResponseMap().remove(query);
-        return this;
     }
 
     /**
@@ -406,6 +404,8 @@ public class SocketClient {
 
     /**
      * 当前连接状态
+     * 当设置状态为{@link State#Connected}, 收发线程等初始操作均未启动
+     * 此状态仅为一个标识
      */
     private State state;
     protected SocketClient setState(State state) {
@@ -420,14 +420,14 @@ public class SocketClient {
     }
 
     /**
-     * 自动应答键值对
+     * 自动应答
      */
-    private HashMap<byte[], byte[]> queryResponseMap;
-    protected HashMap<byte[], byte[]> getQueryResponseMap() {
-        if (this.queryResponseMap == null) {
-            this.queryResponseMap = new HashMap<byte[], byte[]>();
+    private PollingHelper pollingHelper;
+    public PollingHelper getPollingHelper() {
+        if (this.pollingHelper == null) {
+            this.pollingHelper = new PollingHelper(getCharsetName());
         }
-        return this.queryResponseMap;
+        return this.pollingHelper;
     }
 
     private ConnectionThread connectionThread;
@@ -511,17 +511,17 @@ public class SocketClient {
         return this.socketPollingDelegate;
     }
     public interface SocketPollingDelegate {
-        void onPollingQuery(SocketClient socketClient, byte[] pollingQuery);
-        void onPollingResponse(SocketClient socketClient, byte[] pollingResponse);
+        void onPollingQuery(SocketClient socketClient, SocketResponsePacket pollingQueryPacket);
+        void onPollingResponse(SocketClient socketClient, SocketResponsePacket pollingResponsePacket);
 
         class SimpleSocketPollingDelegate implements SocketPollingDelegate {
             @Override
-            public void onPollingQuery(SocketClient socketClient, byte[] pollingQuery) {
+            public void onPollingQuery(SocketClient socketClient, SocketResponsePacket pollingQueryPacket) {
 
             }
 
             @Override
-            public void onPollingResponse(SocketClient socketClient, byte[] pollingResponse) {
+            public void onPollingResponse(SocketClient socketClient, SocketResponsePacket pollingResponsePacket) {
 
             }
         }
@@ -593,6 +593,7 @@ public class SocketClient {
 
         getHearBeatCountDownTimer().start();
 
+
         ArrayList<SocketDelegate> delegatesCopy =
                 (ArrayList<SocketDelegate>) getSocketDelegates().clone();
         int count = delegatesCopy.size();
@@ -626,15 +627,14 @@ public class SocketClient {
             return;
         }
 
-        for (Map.Entry<byte[], byte[]> entry : getQueryResponseMap().entrySet()) {
-            if (responsePacket.isMatch(entry.getKey())) {
-                onReceivePollingQuery(entry.getKey());
-                return;
-            }
-            if (responsePacket.isMatch(entry.getValue())) {
-                onReceivePollingResponse(entry.getValue());
-                return;
-            }
+        if (getPollingHelper().containsQuery(responsePacket.getData())) {
+            onReceivePollingQuery(responsePacket);
+            return;
+        }
+
+        if (getPollingHelper().containsResponse(responsePacket.getData())) {
+            onReceivePollingResponse(responsePacket);
+            return;
         }
 
         ArrayList<SocketDelegate> delegatesCopy =
@@ -656,24 +656,24 @@ public class SocketClient {
     }
 
     @CallSuper
-    protected void onReceivePollingQuery(byte[] pollingQuery) {
-        send(getQueryResponseMap().get(pollingQuery));
+    protected void onReceivePollingQuery(SocketResponsePacket pollingQueryPacket) {
+        send(getPollingHelper().getResponse(pollingQueryPacket.getData()));
 
         ArrayList<SocketPollingDelegate> delegatesCopy =
                 (ArrayList<SocketPollingDelegate>) getSocketPollingDelegate().clone();
         int count = delegatesCopy.size();
         for (int i = 0; i < count; ++i) {
-            delegatesCopy.get(i).onPollingQuery(this, pollingQuery);
+            delegatesCopy.get(i).onPollingQuery(this, pollingQueryPacket);
         }
     }
 
-    protected void onReceivePollingResponse(byte[] pollingResponse) {
+    protected void onReceivePollingResponse(SocketResponsePacket pollingResponsePacket) {
 
         ArrayList<SocketPollingDelegate> delegatesCopy =
                 (ArrayList<SocketPollingDelegate>) getSocketPollingDelegate().clone();
         int count = delegatesCopy.size();
         for (int i = 0; i < count; ++i) {
-            delegatesCopy.get(i).onPollingResponse(this, pollingResponse);
+            delegatesCopy.get(i).onPollingResponse(this, pollingResponsePacket);
         }
     }
 

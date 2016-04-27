@@ -6,6 +6,7 @@ import android.support.v7.app.AppCompatActivity;
 
 import com.vilyever.logger.Logger;
 import com.vilyever.socketclient.SocketClient;
+import com.vilyever.socketclient.SocketPacket;
 import com.vilyever.socketclient.SocketResponsePacket;
 import com.vilyever.socketclient.server.SocketServer;
 import com.vilyever.socketclient.server.SocketServerClient;
@@ -106,6 +107,25 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        getLocalSocketClient().registerSocketHeartBeatDelegate(new SocketClient.SocketHeartBeatDelegate() {
+            @Override
+            public void onHeartBeat(SocketClient socketClient) {
+                Logger.log("onHeartBeat");
+            }
+        });
+
+        getLocalSocketClient().registerSocketPollingDelegate(new SocketClient.SocketPollingDelegate() {
+            @Override
+            public void onPollingQuery(SocketClient socketClient, SocketResponsePacket pollingQueryPacket) {
+                Logger.log("onPollingQuery " + pollingQueryPacket.getMessage());
+            }
+
+            @Override
+            public void onPollingResponse(SocketClient socketClient, SocketResponsePacket pollingResponsePacket) {
+                Logger.log("onPollingResponse " + pollingResponsePacket.getMessage());
+            }
+        });
+
         getLocalSocketClient().connect();
 
         getWindow().getDecorView().postDelayed(new Runnable() {
@@ -118,6 +138,8 @@ public class MainActivity extends AppCompatActivity {
                 catch (UnsupportedEncodingException e) {
                     e.printStackTrace();
                 }
+
+                getLocalSocketClient().send(SocketPacket.DefaultPollingQueryMessage);
             }
         }, 5 * 1000);
     }

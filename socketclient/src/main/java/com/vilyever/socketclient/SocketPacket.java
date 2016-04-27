@@ -66,11 +66,11 @@ public class SocketPacket {
         this(message, Charset.forName(charsetName), isSupportReadLine);
     }
 
-    public SocketPacket(String message, Charset charset) {
+    protected SocketPacket(String message, Charset charset) {
         this(message, charset, false);
     }
 
-    public SocketPacket(String message, Charset charset, boolean isSupportReadLine) {
+    protected SocketPacket(String message, Charset charset, boolean isSupportReadLine) {
         this.ID = IDAtomic.getAndIncrement();
         this.message = message;
 
@@ -80,6 +80,18 @@ public class SocketPacket {
         byte[] data = message.getBytes(charset);
 
         this.data = data;
+    }
+
+    public static SocketPacket newInstanceWithBytes(byte[] data, boolean isSupportReadLine) {
+        return new SocketPacket(data, isSupportReadLine);
+    }
+
+    public static SocketPacket newInstanceWithString(String message) {
+        return new SocketPacket(message);
+    }
+
+    public static SocketPacket newInstanceWithString(String message, String charsetName) {
+        return new SocketPacket(message, charsetName);
     }
 
     /* Public Methods */

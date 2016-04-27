@@ -7,6 +7,7 @@ import android.support.annotation.CallSuper;
 import android.support.annotation.NonNull;
 import android.support.annotation.WorkerThread;
 
+import com.vilyever.socketclient.PollingHelper;
 import com.vilyever.socketclient.SocketClient;
 import com.vilyever.socketclient.SocketPacket;
 import com.vilyever.socketclient.SocketResponsePacket;
@@ -18,8 +19,8 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.HashMap;
 
 /**
  * SocketServer
@@ -84,21 +85,6 @@ public class SocketServer implements SocketClient.SocketDelegate {
 
     public String getIP() {
         return getRunningServerSocket().getLocalSocketAddress().toString().substring(1);
-    }
-
-    public SocketServer registerQueryResponse(String query, String response) {
-        getQueryResponseMap().put(query, response);
-        return this;
-    }
-
-    public SocketServer registerQueryResponse(HashMap<String, String> queryResponseMap) {
-        getQueryResponseMap().putAll(queryResponseMap);
-        return this;
-    }
-
-    public SocketServer removeQueryResponse(String query) {
-        getQueryResponseMap().remove(query);
-        return this;
     }
 
     /**
@@ -202,12 +188,18 @@ public class SocketServer implements SocketClient.SocketDelegate {
     /**
      * 统一配置心跳包信息
      */
-    private String heartBeatMessage;
+    private byte[] heartBeatMessage;
     public SocketServer setHeartBeatMessage(String heartBeatMessage) {
+        return setHeartBeatMessage(heartBeatMessage, getCharsetName());
+    }
+    public SocketServer setHeartBeatMessage(String heartBeatMessage, String charsetName) {
+        return setHeartBeatMessage(heartBeatMessage.getBytes(Charset.forName(charsetName)));
+    }
+    public SocketServer setHeartBeatMessage(byte[] heartBeatMessage) {
         this.heartBeatMessage = heartBeatMessage;
         return this;
     }
-    public String getHeartBeatMessage() {
+    public byte[] getHeartBeatMessage() {
         if (this.heartBeatMessage == null) {
             this.heartBeatMessage = SocketPacket.DefaultHeartBeatMessage;
         }
@@ -261,16 +253,16 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     /**
-     * 统一配置自动应答键值对
+     * 统一配置自动应答
      */
-    private HashMap<String, String> queryResponseMap;
-    protected HashMap<String, String> getQueryResponseMap() {
-        if (this.queryResponseMap == null) {
-            this.queryResponseMap = new HashMap<String, String>();
+    private PollingHelper pollingHelper;
+    public PollingHelper getPollingHelper() {
+        if (this.pollingHelper == null) {
+            this.pollingHelper = new PollingHelper(getCharsetName());
         }
-        return this.queryResponseMap;
+        return this.pollingHelper;
     }
-    
+
     private ArrayList<SocketServerClient> runningSocketServerClients;
     protected ArrayList<SocketServerClient> getRunningSocketServerClients() {
         if (this.runningSocketServerClients == null) {
@@ -404,6 +396,8 @@ public class SocketServer implements SocketClient.SocketDelegate {
         this.listenThread = null;
         this.runningServerSocket = null;
 
+        disconnectAllClients();
+
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
         int count = copyList.size();
@@ -423,7 +417,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
         socketServerClient.setHeartBeatMessage(getHeartBeatMessage());
         socketServerClient.setHeartBeatInterval(getHeartBeatInterval());
         socketServerClient.setRemoteNoReplyAliveTimeout(getRemoteNoReplyAliveTimeout());
-        socketServerClient.registerQueryResponse(getQueryResponseMap());
+        socketServerClient.getPollingHelper().append(getPollingHelper());
 
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
@@ -488,7 +482,6 @@ public class SocketServer implements SocketClient.SocketDelegate {
                 }
                 catch (IOException e) {
 //                    e.printStackTrace();
-                    self.disconnectAllClients();
                 }
             }
 
