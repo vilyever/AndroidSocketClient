@@ -451,6 +451,13 @@ public class SocketServer implements SocketClient.SocketDelegate {
         return getRunningServerSocket() != null && !getRunningServerSocket().isClosed();
     }
 
+    private void disconnectAllClients() {
+        while (getRunningSocketServerClients().size() > 0) {
+            SocketServerClient client = getRunningSocketServerClients().get(0);
+            getRunningSocketServerClients().remove(client);
+            client.disconnect();
+        }
+    }
 
     /* Inner Classes */
     private class ListenThread extends Thread  {
@@ -480,7 +487,8 @@ public class SocketServer implements SocketClient.SocketDelegate {
                     self.getUiHandler().sendMessage(message);
                 }
                 catch (IOException e) {
-                    e.printStackTrace();
+//                    e.printStackTrace();
+                    self.disconnectAllClients();
                 }
             }
 

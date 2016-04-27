@@ -152,11 +152,19 @@ public class SocketClient {
     }
 
     public SocketClient registerQueryResponse(String query, String response) {
+        return registerQueryResponse(query, response, getCharsetName());
+    }
+
+    public SocketClient registerQueryResponse(String query, String response, String charsetName) {
+        return registerQueryResponse(query.getBytes(Charset.forName(charsetName)), response.getBytes(Charset.forName(charsetName)));
+    }
+
+    public SocketClient registerQueryResponse(byte[] query, byte[] response) {
         getQueryResponseMap().put(query, response);
         return this;
     }
 
-    public SocketClient registerQueryResponse(HashMap<String, String> queryResponseMap) {
+    public SocketClient registerQueryResponse(HashMap<byte[], byte[]> queryResponseMap) {
         getQueryResponseMap().putAll(queryResponseMap);
         return this;
     }
@@ -323,12 +331,18 @@ public class SocketClient {
     /**
      * 心跳包信息
      */
-    private String heartBeatMessage;
+    private byte[] heartBeatMessage;
     public SocketClient setHeartBeatMessage(String heartBeatMessage) {
+        return setHeartBeatMessage(heartBeatMessage, getCharsetName());
+    }
+    public SocketClient setHeartBeatMessage(String heartBeatMessage, String charsetName) {
+        return setHeartBeatMessage(heartBeatMessage.getBytes(Charset.forName(charsetName)));
+    }
+    public SocketClient setHeartBeatMessage(byte[] heartBeatMessage) {
         this.heartBeatMessage = heartBeatMessage;
         return this;
     }
-    public String getHeartBeatMessage() {
+    public byte[] getHeartBeatMessage() {
         if (this.heartBeatMessage == null) {
             this.heartBeatMessage = SocketPacket.DefaultHeartBeatMessage;
         }
@@ -408,10 +422,10 @@ public class SocketClient {
     /**
      * 自动应答键值对
      */
-    private HashMap<String, String> queryResponseMap;
-    protected HashMap<String, String> getQueryResponseMap() {
+    private HashMap<byte[], byte[]> queryResponseMap;
+    protected HashMap<byte[], byte[]> getQueryResponseMap() {
         if (this.queryResponseMap == null) {
-            this.queryResponseMap = new HashMap<String, String>();
+            this.queryResponseMap = new HashMap<byte[], byte[]>();
         }
         return this.queryResponseMap;
     }
@@ -497,17 +511,17 @@ public class SocketClient {
         return this.socketPollingDelegate;
     }
     public interface SocketPollingDelegate {
-        void onPollingQuery(SocketClient socketClient, String pollingQuery);
-        void onPollingResponse(SocketClient socketClient, String pollingResponse);
+        void onPollingQuery(SocketClient socketClient, byte[] pollingQuery);
+        void onPollingResponse(SocketClient socketClient, byte[] pollingResponse);
 
         class SimpleSocketPollingDelegate implements SocketPollingDelegate {
             @Override
-            public void onPollingQuery(SocketClient socketClient, String pollingQuery) {
+            public void onPollingQuery(SocketClient socketClient, byte[] pollingQuery) {
 
             }
 
             @Override
-            public void onPollingResponse(SocketClient socketClient, String pollingResponse) {
+            public void onPollingResponse(SocketClient socketClient, byte[] pollingResponse) {
 
             }
         }
@@ -612,7 +626,7 @@ public class SocketClient {
             return;
         }
 
-        for (Map.Entry<String, String> entry : getQueryResponseMap().entrySet()) {
+        for (Map.Entry<byte[], byte[]> entry : getQueryResponseMap().entrySet()) {
             if (responsePacket.isMatch(entry.getKey())) {
                 onReceivePollingQuery(entry.getKey());
                 return;
@@ -642,7 +656,7 @@ public class SocketClient {
     }
 
     @CallSuper
-    protected void onReceivePollingQuery(String pollingQuery) {
+    protected void onReceivePollingQuery(byte[] pollingQuery) {
         send(getQueryResponseMap().get(pollingQuery));
 
         ArrayList<SocketPollingDelegate> delegatesCopy =
@@ -653,7 +667,7 @@ public class SocketClient {
         }
     }
 
-    protected void onReceivePollingResponse(String pollingResponse) {
+    protected void onReceivePollingResponse(byte[] pollingResponse) {
 
         ArrayList<SocketPollingDelegate> delegatesCopy =
                 (ArrayList<SocketPollingDelegate>) getSocketPollingDelegate().clone();

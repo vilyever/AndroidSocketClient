@@ -19,14 +19,14 @@ public class SocketPacket {
     /**
      * sending this message every heartbeat to make sure current client alive
      */
-    public static final String DefaultHeartBeatMessage = "$HB$";
+    public static final byte[] DefaultHeartBeatMessage = "$HB$".getBytes(Charset.forName(CharsetNames.UTF_8));
 
     /**
      * sending DefaultPollingQueryMessage will response DefaultPollingResponseMessage immediately
      * sending DefaultPollingResponseMessage will response nothing
      */
-    public static final String DefaultPollingQueryMessage = "$PQ$";
-    public static final String DefaultPollingResponseMessage = "$PR$";
+    public static final byte[] DefaultPollingQueryMessage = "$PQ$".getBytes(Charset.forName(CharsetNames.UTF_8));
+    public static final byte[] DefaultPollingResponseMessage = "$PR$".getBytes(Charset.forName(CharsetNames.UTF_8));
 
     private static final AtomicInteger IDAtomic = new AtomicInteger();
 

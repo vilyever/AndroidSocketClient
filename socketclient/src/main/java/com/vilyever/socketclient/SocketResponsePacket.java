@@ -45,6 +45,10 @@ public class SocketResponsePacket {
 
     public boolean isMatch(String message, Charset charset) {
         byte[] bytes = message.getBytes(charset);
+        return isMatch(bytes);
+    }
+
+    public boolean isMatch(byte[] bytes) {
         return Arrays.equals(getData(), bytes);
     }
 
