@@ -17,11 +17,19 @@ Step 2. Add the dependency in the form
 
 ```gradle
 dependencies {
-  compile 'com.github.vilyever:AndroidSocketClient:1.3.3'
+  compile 'com.github.vilyever:AndroidSocketClient:1.3.4'
 }
 ```
 
 ## Updates
+* 1.3.4
+</br>
+修复SocketServer停止监听时未将已连接的client断开问题
+</br>
+心跳包修改为可发送byte数组
+</br>
+自动应答集成一个帮助类
+
 * 1.3.3
 </br>
 修复SocketServer启动监听回调时机问题
@@ -65,7 +73,7 @@ socketClient.setHeartBeatInterval(1000 * 30); // 设置心跳包发送间隔
 
 socketClient.setRemoteNoReplyAliveTimeout(1000 * 60); // 设置远程端在多长时间没有消息发送到本地时自动断开连接
 
-socketClient.registerQueryResponse("query", "response"); // 设置自动应答键值对，即收到"query"时自动发送"response"
+socketClient.getPollingHelper().registerQueryResponse("query", "response"); // 设置自动应答键值对，即收到"query"时自动发送"response"
 
 socketClient.setSupportReadLine(false); // 设置是否支持对每条消息添加换行符分割，默认为true
 
