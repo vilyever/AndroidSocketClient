@@ -36,7 +36,9 @@ public class SocketClient {
 
     public static final int DefaultConnectionTimeout = 1000 * 15;
     public static final long DefaultHeartBeatInterval = 1000 * 30;
+    public static final long NoneHeartBeatInterval = -1;
     public static final long DefaultRemoteNoReplyAliveTimeout = DefaultHeartBeatInterval * 2;
+    public static final long NoneRemoteNoReplyAliveTimeout = -1;
 
     /* Constructors */
     public SocketClient(@NonNull String remoteIP, int remotePort) {
@@ -157,6 +159,20 @@ public class SocketClient {
 
     public boolean isConnecting() {
         return getState() == State.Connecting;
+    }
+
+    /**
+     * 禁用发送心跳包
+     */
+    public void disableHeartBeat() {
+        setHeartBeatInterval(NoneHeartBeatInterval);
+    }
+
+    /**
+     * 禁用自动断开
+     */
+    public void disableRemoteNoReplyAliveTimeout() {
+        setRemoteNoReplyAliveTimeout(NoneRemoteNoReplyAliveTimeout);
     }
 
     /**
@@ -304,7 +320,7 @@ public class SocketClient {
     private long remoteNoReplyAliveTimeout = DefaultRemoteNoReplyAliveTimeout;
     public SocketClient setRemoteNoReplyAliveTimeout(long remoteNoReplyAliveTimeout) {
         if (remoteNoReplyAliveTimeout < 0) {
-            throw new IllegalArgumentException("we need remoteNoReplyAliveTimeout > 0");
+            remoteNoReplyAliveTimeout = NoneRemoteNoReplyAliveTimeout;
         }
         this.remoteNoReplyAliveTimeout = remoteNoReplyAliveTimeout;
         return this;
@@ -340,7 +356,7 @@ public class SocketClient {
     private long heartBeatInterval = DefaultHeartBeatInterval;
     public SocketClient setHeartBeatInterval(long heartBeatInterval) {
         if (heartBeatInterval < 0) {
-            throw new IllegalArgumentException("we need heartBeatInterval > 0");
+            heartBeatInterval = NoneHeartBeatInterval;
         }
         this.heartBeatInterval = heartBeatInterval;
         return this;
@@ -574,7 +590,6 @@ public class SocketClient {
         getSendThread().start();
         getReceiveThread().start();
 
-        send(getHeartBeatMessage());
         setLastSendHeartBeatMessageTime(System.currentTimeMillis());
         setLastReceiveMessageTime(System.currentTimeMillis());
 
@@ -668,13 +683,17 @@ public class SocketClient {
     protected void onTimeTick() {
         long currentTime = System.currentTimeMillis();
 
-        if (currentTime - getLastSendHeartBeatMessageTime() >= getHeartBeatInterval()) {
-            send(getHeartBeatMessage());
-            setLastSendHeartBeatMessageTime(currentTime);
+        if (getHeartBeatInterval() != NoneHeartBeatInterval) {
+            if (currentTime - getLastSendHeartBeatMessageTime() >= getHeartBeatInterval()) {
+                send(getHeartBeatMessage());
+                setLastSendHeartBeatMessageTime(currentTime);
+            }
         }
 
-        if (currentTime - getLastReceiveMessageTime() >= getRemoteNoReplyAliveTimeout()) {
-            disconnect();
+        if (getRemoteNoReplyAliveTimeout() != NoneRemoteNoReplyAliveTimeout) {
+            if (currentTime - getLastReceiveMessageTime() >= getRemoteNoReplyAliveTimeout()) {
+                disconnect();
+            }
         }
     }
      

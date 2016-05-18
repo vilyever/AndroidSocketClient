@@ -88,6 +88,20 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     /**
+     * 统一禁用发送心跳包
+     */
+    public void disableHeartBeat() {
+        setHeartBeatInterval(SocketClient.NoneHeartBeatInterval);
+    }
+
+    /**
+     * 统一禁用自动断开
+     */
+    public void disableRemoteNoReplyAliveTimeout() {
+        setRemoteNoReplyAliveTimeout(SocketClient.NoneRemoteNoReplyAliveTimeout);
+    }
+
+    /**
      * 注册监听回调
      * @param delegate 回调接收者
      */
@@ -212,7 +226,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
     private long heartBeatInterval = SocketServerClient.DefaultHeartBeatInterval;
     public SocketServer setHeartBeatInterval(long heartBeatInterval) {
         if (heartBeatInterval < 0) {
-            throw new IllegalArgumentException("we need heartBeatInterval > 0");
+            heartBeatInterval = SocketClient.NoneHeartBeatInterval;
         }
         this.heartBeatInterval = heartBeatInterval;
 
@@ -235,7 +249,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
     private long remoteNoReplyAliveTimeout = SocketServerClient.DefaultRemoteNoReplyAliveTimeout;
     public SocketServer setRemoteNoReplyAliveTimeout(long remoteNoReplyAliveTimeout) {
         if (remoteNoReplyAliveTimeout < 0) {
-            throw new IllegalArgumentException("we need remoteNoReplyAliveTimeout > 0");
+            remoteNoReplyAliveTimeout = SocketClient.NoneRemoteNoReplyAliveTimeout;
         }
         this.remoteNoReplyAliveTimeout = remoteNoReplyAliveTimeout;
 
