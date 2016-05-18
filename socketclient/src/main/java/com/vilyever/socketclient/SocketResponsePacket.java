@@ -1,8 +1,5 @@
 package com.vilyever.socketclient;
 
-import com.vilyever.socketclient.util.CharsetNames;
-
-import java.nio.charset.Charset;
 import java.util.Arrays;
 
 /**
@@ -16,36 +13,18 @@ public class SocketResponsePacket {
 
     
     /* Constructors */
-    public SocketResponsePacket(byte[] data, String defaultCharsetName) {
+    public SocketResponsePacket(byte[] data, String message) {
         this.data = data;
-        this.defaultCharsetName = defaultCharsetName;
+        this.message = message;
     }
 
     
     /* Public Methods */
-    public String getMessage() {
-        return getMessage(getDefaultCharsetName());
-    }
-
-    public String getMessage(String charsetName) {
-        return getMessage(Charset.forName(charsetName));
-    }
-
-    public String getMessage(Charset charset) {
-        return new String(getData(), charset);
-    }
-
     public boolean isMatch(String message) {
-        return isMatch(message, CharsetNames.UTF_8);
-    }
-
-    public boolean isMatch(String message, String charsetName) {
-        return isMatch(message, Charset.forName(charsetName));
-    }
-
-    public boolean isMatch(String message, Charset charset) {
-        byte[] bytes = message.getBytes(charset);
-        return isMatch(bytes);
+        if (getMessage() == null) {
+            return false;
+        }
+        return getMessage().equals(message);
     }
 
     public boolean isMatch(byte[] bytes) {
@@ -61,9 +40,9 @@ public class SocketResponsePacket {
         return this.data;
     }
 
-    private final String defaultCharsetName;
-    public String getDefaultCharsetName() {
-        return this.defaultCharsetName;
+    private final String message;
+    public String getMessage() {
+        return this.message;
     }
 
 

@@ -806,7 +806,14 @@ public class SocketClient {
                         break;
                     }
 
-                    SocketResponsePacket responsePacket = new SocketResponsePacket(result, self.getCharsetName());
+                    String resultMessage = null;
+                    try {
+                        resultMessage = new String(result, Charset.forName(self.getCharsetName()));
+                    }
+                    catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    SocketResponsePacket responsePacket = new SocketResponsePacket(result, resultMessage);
 
                     Message message = Message.obtain();
                     message.what = UIHandler.MessageType.ReceiveResponse.what();
