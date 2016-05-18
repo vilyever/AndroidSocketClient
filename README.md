@@ -22,6 +22,14 @@ dependencies {
 ```
 
 ## Updates
+* 1.4.1
+</br>
+增加禁用心跳包和超时自动断开
+</br>
+SocketClient.disableHeartBeat();
+</br>
+SocketClient.disableRemoteNoReplyAliveTimeout();
+
 * 1.4.0
 </br>
 将发送和接收时对String和byte数组的转换移到后台线程进行
