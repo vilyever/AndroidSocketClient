@@ -26,7 +26,7 @@ dependencies {
 </br>
 增加禁用心跳包和超时自动断开
 </br>
-SocketClient.disableHeartBeat();
+SocketClient.disableHeartBeat();(设置heartBeatMessage为null效果相同）
 </br>
 SocketClient.disableRemoteNoReplyAliveTimeout();
 
