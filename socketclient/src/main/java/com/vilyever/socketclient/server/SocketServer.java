@@ -202,21 +202,24 @@ public class SocketServer implements SocketClient.SocketDelegate {
     /**
      * 统一配置心跳包信息
      */
-    private byte[] heartBeatMessage;
+    private byte[] heartBeatMessage = SocketPacket.DefaultHeartBeatMessage;
     public SocketServer setHeartBeatMessage(String heartBeatMessage) {
         return setHeartBeatMessage(heartBeatMessage, getCharsetName());
     }
     public SocketServer setHeartBeatMessage(String heartBeatMessage, String charsetName) {
-        return setHeartBeatMessage(heartBeatMessage.getBytes(Charset.forName(charsetName)));
+        if (heartBeatMessage != null) {
+            return setHeartBeatMessage(heartBeatMessage.getBytes(Charset.forName(charsetName)));
+        }
+        else {
+            this.heartBeatMessage = null;
+            return this;
+        }
     }
     public SocketServer setHeartBeatMessage(byte[] heartBeatMessage) {
         this.heartBeatMessage = heartBeatMessage;
         return this;
     }
     public byte[] getHeartBeatMessage() {
-        if (this.heartBeatMessage == null) {
-            this.heartBeatMessage = SocketPacket.DefaultHeartBeatMessage;
-        }
         return this.heartBeatMessage;
     }
 

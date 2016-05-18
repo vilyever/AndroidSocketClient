@@ -332,21 +332,24 @@ public class SocketClient {
     /**
      * 心跳包信息
      */
-    private byte[] heartBeatMessage;
+    private byte[] heartBeatMessage = SocketPacket.DefaultHeartBeatMessage;
     public SocketClient setHeartBeatMessage(String heartBeatMessage) {
         return setHeartBeatMessage(heartBeatMessage, getCharsetName());
     }
     public SocketClient setHeartBeatMessage(String heartBeatMessage, String charsetName) {
-        return setHeartBeatMessage(heartBeatMessage.getBytes(Charset.forName(charsetName)));
+        if (heartBeatMessage != null) {
+            return setHeartBeatMessage(heartBeatMessage.getBytes(Charset.forName(charsetName)));
+        }
+        else {
+            this.heartBeatMessage = null;
+            return this;
+        }
     }
     public SocketClient setHeartBeatMessage(byte[] heartBeatMessage) {
         this.heartBeatMessage = heartBeatMessage;
         return this;
     }
     public byte[] getHeartBeatMessage() {
-        if (this.heartBeatMessage == null) {
-            this.heartBeatMessage = SocketPacket.DefaultHeartBeatMessage;
-        }
         return this.heartBeatMessage;
     }
 
@@ -683,7 +686,7 @@ public class SocketClient {
     protected void onTimeTick() {
         long currentTime = System.currentTimeMillis();
 
-        if (getHeartBeatInterval() != NoneHeartBeatInterval) {
+        if (getHeartBeatInterval() != NoneHeartBeatInterval && getHeartBeatMessage() != null) {
             if (currentTime - getLastSendHeartBeatMessageTime() >= getHeartBeatInterval()) {
                 send(getHeartBeatMessage());
                 setLastSendHeartBeatMessageTime(currentTime);
