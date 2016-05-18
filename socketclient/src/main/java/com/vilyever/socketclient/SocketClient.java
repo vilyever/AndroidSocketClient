@@ -334,9 +334,15 @@ public class SocketClient {
      */
     private byte[] heartBeatMessage = SocketPacket.DefaultHeartBeatMessage;
     public SocketClient setHeartBeatMessage(String heartBeatMessage) {
+        return setHeartBeatMessageString(heartBeatMessage);
+    }
+    public SocketClient setHeartBeatMessageString(String heartBeatMessage) {
         return setHeartBeatMessage(heartBeatMessage, getCharsetName());
     }
     public SocketClient setHeartBeatMessage(String heartBeatMessage, String charsetName) {
+        return setHeartBeatMessageString(heartBeatMessage, charsetName);
+    }
+    public SocketClient setHeartBeatMessageString(String heartBeatMessage, String charsetName) {
         if (heartBeatMessage != null) {
             return setHeartBeatMessage(heartBeatMessage.getBytes(Charset.forName(charsetName)));
         }
@@ -346,6 +352,9 @@ public class SocketClient {
         }
     }
     public SocketClient setHeartBeatMessage(byte[] heartBeatMessage) {
+        return setHeartBeatMessageBytes(heartBeatMessage);
+    }
+    public SocketClient setHeartBeatMessageBytes(byte[] heartBeatMessage) {
         this.heartBeatMessage = heartBeatMessage;
         return this;
     }

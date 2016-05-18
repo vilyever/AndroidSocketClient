@@ -204,9 +204,15 @@ public class SocketServer implements SocketClient.SocketDelegate {
      */
     private byte[] heartBeatMessage = SocketPacket.DefaultHeartBeatMessage;
     public SocketServer setHeartBeatMessage(String heartBeatMessage) {
+        return setHeartBeatMessageString(heartBeatMessage);
+    }
+    public SocketServer setHeartBeatMessageString(String heartBeatMessage) {
         return setHeartBeatMessage(heartBeatMessage, getCharsetName());
     }
     public SocketServer setHeartBeatMessage(String heartBeatMessage, String charsetName) {
+        return setHeartBeatMessageString(heartBeatMessage, charsetName);
+    }
+    public SocketServer setHeartBeatMessageString(String heartBeatMessage, String charsetName) {
         if (heartBeatMessage != null) {
             return setHeartBeatMessage(heartBeatMessage.getBytes(Charset.forName(charsetName)));
         }
@@ -216,6 +222,9 @@ public class SocketServer implements SocketClient.SocketDelegate {
         }
     }
     public SocketServer setHeartBeatMessage(byte[] heartBeatMessage) {
+        return setHeartBeatMessageBytes(heartBeatMessage);
+    }
+    public SocketServer setHeartBeatMessageBytes(byte[] heartBeatMessage) {
         this.heartBeatMessage = heartBeatMessage;
         return this;
     }
