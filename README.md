@@ -17,11 +17,15 @@ Step 2. Add the dependency in the form
 
 ```gradle
 dependencies {
-  compile 'com.github.vilyever:AndroidSocketClient:1.3.4'
+  compile 'com.github.vilyever:AndroidSocketClient:1.4.0'
 }
 ```
 
 ## Updates
+* 1.4.0
+</br>
+将发送和接收时对String和byte数组的转换移到后台线程进行
+
 * 1.3.4
 </br>
 修复SocketServer停止监听时未将已连接的client断开问题
@@ -50,7 +54,6 @@ socketClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
     @Override
     public void onConnected(SocketClient client) {
         socketClient.send("message"); // 发送String消息，使用默认编码
-        socketClient.send("message", "GBK"); // 发送String消息，使用GBK编码
         socketClient.send("message".getBytes()); // 发送byte[]消息
     }
 
@@ -63,7 +66,6 @@ socketClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
     public void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket) {
         byte[] data = responsePacket.getData(); // 获取byte[]数据
         String msg = responsePacket.getMessage(); // 使用默认编码获取String消息
-        String msg2 = responsePacket.getMessage("GBK"); // 使用GBK编码获取String消息
     }
 });
 
