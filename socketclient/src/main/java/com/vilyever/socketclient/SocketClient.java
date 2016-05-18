@@ -11,14 +11,17 @@ import android.support.annotation.UiThread;
 import com.vilyever.socketclient.util.CharsetNames;
 import com.vilyever.socketclient.util.ExceptionThrower;
 import com.vilyever.socketclient.util.SocketInputReader;
+import com.vilyever.socketclient.util.SocketSplitter;
 import com.vilyever.socketclient.util.StringValidation;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.lang.ref.WeakReference;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -114,7 +117,7 @@ public class SocketClient {
         if (!isConnected()) {
             return null;
         }
-        SocketPacket socketPacket = new SocketPacket(data, isSupportReadLine());
+        SocketPacket socketPacket = new SocketPacket(data);
         getSendThread().enqueueSocketPacket(socketPacket);
         return socketPacket;
     }
@@ -127,27 +130,11 @@ public class SocketClient {
         return send(message);
     }
 
-    /**
-     * 与{@link #send(String, String)} 相同，增加一个别名
-     * @return
-     */
-    public SocketPacket sendString(String message, String charsetName) {
-        return send(message, charsetName);
-    }
-
     public SocketPacket send(String message) {
-        return send(message, getCharsetName());
-    }
-
-    public SocketPacket send(String message, String charsetName) {
-        return send(message, Charset.forName(charsetName));
-    }
-
-    protected SocketPacket send(String message, Charset charset) {
         if (!isConnected()) {
             return null;
         }
-        SocketPacket socketPacket = new SocketPacket(message, charset, isSupportReadLine());
+        SocketPacket socketPacket = new SocketPacket(message);
         getSendThread().enqueueSocketPacket(socketPacket);
         return socketPacket;
     }
@@ -234,7 +221,7 @@ public class SocketClient {
 
     /* Properties */
     private Socket runningSocket;
-    protected Socket getRunningSocket() {
+    public Socket getRunningSocket() {
         if (this.runningSocket == null) {
             this.runningSocket = new Socket();
         }
@@ -707,7 +694,6 @@ public class SocketClient {
 
             try {
                 self.getRunningSocket().connect(new InetSocketAddress(self.getRemoteIP(), self.getRemotePort()), self.getConnectionTimeout());
-                self.getRunningSocket().setTcpNoDelay(true);
                 self.getUiHandler().sendEmptyMessage(UIHandler.MessageType.Connected.what());
             }
             catch (IOException e) {
@@ -758,12 +744,31 @@ public class SocketClient {
                 SocketPacket packet;
                 while ((packet = getSendingQueue().poll()) != null) {
                     long lastSendTime = System.currentTimeMillis();
-                    try {
-                        self.getRunningSocket().getOutputStream().write(packet.getData());
-                        self.getRunningSocket().getOutputStream().flush();
+
+                    byte[] data = packet.getData();
+                    if (data == null && packet.getMessage() != null) {
+                        try {
+                            String message = packet.getMessage();
+                            data = message.getBytes(self.getCharsetName());
+                        }
+                        catch (UnsupportedEncodingException e) {
+                            e.printStackTrace();
+                        }
                     }
-                    catch (IOException e) {
-                        e.printStackTrace();
+
+                    if (data != null) {
+                        try {
+                            if (self.isSupportReadLine()) {
+                                data = Arrays.copyOf(data, data.length + 2);
+                                data[data.length - 2] = SocketSplitter.SplitterFirst;
+                                data[data.length - 1] = SocketSplitter.SplitterLast;
+                            }
+                            self.getRunningSocket().getOutputStream().write(data);
+                            self.getRunningSocket().getOutputStream().flush();
+                        }
+                        catch (IOException e) {
+                            e.printStackTrace();
+                        }
                     }
 
                     // 若不支持换行符分割消息，增加每一条消息的发送间隔，此举在本地java端socket互连时可解决快速发送时多条消息混杂问题

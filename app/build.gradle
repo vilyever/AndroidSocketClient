@@ -25,4 +25,5 @@ dependencies {
 
     compile project(":socketclient")
     compile 'com.github.vilyever:AndroidLogger:1.0.0'
+    compile 'com.github.vilyever:AndroidJsonModel:1.2.0'
 }

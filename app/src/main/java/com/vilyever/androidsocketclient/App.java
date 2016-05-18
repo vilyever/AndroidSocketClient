@@ -2,8 +2,6 @@ package com.vilyever.androidsocketclient;
 
 import android.app.Application;
 
-import com.vilyever.logger.LoggerDisplay;
-
 /**
  * App
  * AndroidSocketClient <com.vilyever.androidsocketclient>
@@ -29,7 +27,7 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
 
-        LoggerDisplay.initialize(this);
+//        LoggerDisplay.initialize(this);
     }
 
     /* Delegates */

@@ -1,7 +1,6 @@
 package com.vilyever.socketclient;
 
 import com.vilyever.socketclient.util.CharsetNames;
-import com.vilyever.socketclient.util.SocketSplitter;
 
 import java.nio.charset.Charset;
 import java.util.Arrays;
@@ -32,66 +31,23 @@ public class SocketPacket {
 
     /* Constructors */
     public SocketPacket(byte[] data) {
-        this(data, false);
-    }
-
-    public SocketPacket(byte[] data, boolean isSupportReadLine) {
         this.ID = IDAtomic.getAndIncrement();
-
-        if (isSupportReadLine) {
-            this.data = Arrays.copyOf(data, data.length + 2);
-            this.data[this.data.length - 2] = SocketSplitter.SplitterFirst;
-            this.data[this.data.length - 1] = SocketSplitter.SplitterLast;
-        }
-        else {
-            this.data = Arrays.copyOf(data, data.length);
-        }
-
+        this.data = Arrays.copyOf(data, data.length);
         this.message = null;
     }
 
     public SocketPacket(String message) {
-        this(message, false);
-    }
-
-    public SocketPacket(String message, boolean isSupportReadLine) {
-        this(message, CharsetNames.UTF_8, isSupportReadLine);
-    }
-
-    public SocketPacket(String message, String charsetName) {
-        this(message, charsetName, false);
-    }
-
-    public SocketPacket(String message, String charsetName, boolean isSupportReadLine) {
-        this(message, Charset.forName(charsetName), isSupportReadLine);
-    }
-
-    protected SocketPacket(String message, Charset charset) {
-        this(message, charset, false);
-    }
-
-    protected SocketPacket(String message, Charset charset, boolean isSupportReadLine) {
         this.ID = IDAtomic.getAndIncrement();
         this.message = message;
-
-        if (isSupportReadLine) {
-            message += SocketSplitter.Splitter;
-        }
-        byte[] data = message.getBytes(charset);
-
-        this.data = data;
+        this.data = null;
     }
 
-    public static SocketPacket newInstanceWithBytes(byte[] data, boolean isSupportReadLine) {
-        return new SocketPacket(data, isSupportReadLine);
+    public static SocketPacket newInstanceWithBytes(byte[] data) {
+        return new SocketPacket(data);
     }
 
     public static SocketPacket newInstanceWithString(String message) {
         return new SocketPacket(message);
-    }
-
-    public static SocketPacket newInstanceWithString(String message, String charsetName) {
-        return new SocketPacket(message, charsetName);
     }
 
     /* Public Methods */
