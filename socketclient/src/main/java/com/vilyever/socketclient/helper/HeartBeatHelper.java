@@ -135,30 +135,6 @@ public class HeartBeatHelper {
         return this.remoteNoReplyAliveTimeout;
     }
 
-    /**
-     * 记录上次发送心跳包的时间
-     */
-    private long lastSendHeartBeatMessageTime;
-    public HeartBeatHelper setLastSendHeartBeatMessageTime(long lastSendHeartBeatMessageTime) {
-        this.lastSendHeartBeatMessageTime = lastSendHeartBeatMessageTime;
-        return this;
-    }
-    public long getLastSendHeartBeatMessageTime() {
-        return this.lastSendHeartBeatMessageTime;
-    }
-
-    /**
-     * 记录上次接收到消息的时间
-     */
-    private long lastReceiveMessageTime;
-    public HeartBeatHelper setLastReceiveMessageTime(long lastReceiveMessageTime) {
-        this.lastReceiveMessageTime = lastReceiveMessageTime;
-        return this;
-    }
-    public long getLastReceiveMessageTime() {
-        return this.lastReceiveMessageTime;
-    }
-
     /* Overrides */
     
     

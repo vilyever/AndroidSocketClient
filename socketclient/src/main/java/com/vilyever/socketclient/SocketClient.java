@@ -8,7 +8,6 @@ import android.os.Message;
 import android.support.annotation.CallSuper;
 import android.support.annotation.NonNull;
 import android.support.annotation.UiThread;
-import android.util.Log;
 
 import com.vilyever.socketclient.helper.HeartBeatHelper;
 import com.vilyever.socketclient.helper.PollingHelper;
@@ -69,7 +68,6 @@ public class SocketClient {
         }
 
         setDisconnecting(true);
-        Log.d("logger", "disconnect " + getClass().getSimpleName());
 
         if (!getRunningSocket().isClosed()
                 || isConnecting()) {
@@ -551,6 +549,30 @@ public class SocketClient {
         return this.disconnecting;
     }
 
+    /**
+     * 记录上次发送心跳包的时间
+     */
+    private long lastSendHeartBeatMessageTime;
+    protected SocketClient setLastSendHeartBeatMessageTime(long lastSendHeartBeatMessageTime) {
+        this.lastSendHeartBeatMessageTime = lastSendHeartBeatMessageTime;
+        return this;
+    }
+    protected long getLastSendHeartBeatMessageTime() {
+        return this.lastSendHeartBeatMessageTime;
+    }
+
+    /**
+     * 记录上次接收到消息的时间
+     */
+    private long lastReceiveMessageTime;
+    protected SocketClient setLastReceiveMessageTime(long lastReceiveMessageTime) {
+        this.lastReceiveMessageTime = lastReceiveMessageTime;
+        return this;
+    }
+    protected long getLastReceiveMessageTime() {
+        return this.lastReceiveMessageTime;
+    }
+
     /* Overrides */
      
      
@@ -565,8 +587,8 @@ public class SocketClient {
         getSendThread().start();
         getReceiveThread().start();
 
-        getHeartBeatHelper().setLastSendHeartBeatMessageTime(System.currentTimeMillis());
-        getHeartBeatHelper().setLastReceiveMessageTime(System.currentTimeMillis());
+        setLastSendHeartBeatMessageTime(System.currentTimeMillis());
+        setLastReceiveMessageTime(System.currentTimeMillis());
 
         getHearBeatCountDownTimer().start();
 
@@ -598,7 +620,7 @@ public class SocketClient {
     @UiThread
     @CallSuper
     protected void internalOnReceiveResponse(@NonNull SocketResponsePacket responsePacket) {
-        getHeartBeatHelper().setLastReceiveMessageTime(System.currentTimeMillis());
+        setLastReceiveMessageTime(System.currentTimeMillis());
 
         if (responsePacket.isMatch(getHeartBeatHelper().getReceiveData())) {
             internalOnReceiveHeartBeat();
@@ -660,14 +682,14 @@ public class SocketClient {
         long currentTime = System.currentTimeMillis();
 
         if (getHeartBeatHelper().shouldSendHeartBeat()) {
-            if (currentTime - getHeartBeatHelper().getLastSendHeartBeatMessageTime() >= getHeartBeatHelper().getHeartBeatInterval()) {
+            if (currentTime - getLastSendHeartBeatMessageTime() >= getHeartBeatHelper().getHeartBeatInterval()) {
                 send(getHeartBeatHelper().getSendData());
-                getHeartBeatHelper().setLastSendHeartBeatMessageTime(currentTime);
+                setLastSendHeartBeatMessageTime(currentTime);
             }
         }
 
         if (getHeartBeatHelper().shouldAutoDisconnectWhenRemoteNoReplyAliveTimeout()) {
-            if (currentTime - getHeartBeatHelper().getLastReceiveMessageTime() >= getHeartBeatHelper().getRemoteNoReplyAliveTimeout()) {
+            if (currentTime - getLastReceiveMessageTime() >= getHeartBeatHelper().getRemoteNoReplyAliveTimeout()) {
                 disconnect();
             }
         }

@@ -1,21 +1,17 @@
 package com.vilyever.androidsocketclient;
 
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 
 import com.vilyever.jsonmodel.JsonModel;
 import com.vilyever.logger.Logger;
 import com.vilyever.socketclient.SocketClient;
-import com.vilyever.socketclient.helper.SocketPacket;
 import com.vilyever.socketclient.helper.SocketResponsePacket;
 import com.vilyever.socketclient.server.SocketServer;
 import com.vilyever.socketclient.server.SocketServerClient;
 import com.vilyever.socketclient.util.IPUtil;
 
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
@@ -78,10 +74,7 @@ public class MainActivity extends AppCompatActivity {
 
                     @Override
                     public void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket) {
-//                        Logger.log("serverListeningSocketServerClient onResponse \n" + responsePacket.getMessage());
-//                        Logger.log("serverListeningSocketServerClient onResponse length " + responsePacket.getMessage().length());
-//                        Log.d("Logger", "serverListeningSocketServerClient onResponse \n" + responsePacket.getMessage());
-                        Log.d("Logger", "size " + responsePacket.getData().length + " ->" + responsePacket.getMessage().replaceAll("\\r", ""));
+                        Logger.log("size " + responsePacket.getData().length + " ->" + responsePacket.getMessage().replaceAll("\\r", ""));
                     }
                 });
             }
@@ -132,54 +125,54 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        getLocalSocketClient().getSocketPacketHelper().setSendTailString("\r\n");
-        getLocalSocketClient().getSocketPacketHelper().setReceiveTailString("\r\n");
-        getSocketServer().getSocketPacketHelper().setSendTailString("\r\n");
-        getSocketServer().getSocketPacketHelper().setReceiveTailString("\r\n");
+//        getLocalSocketClient().getSocketPacketHelper().setSendTailString("\r\n");
+//        getLocalSocketClient().getSocketPacketHelper().setReceiveTailString("\r\n");
+//        getSocketServer().getSocketPacketHelper().setSendTailString("\r\n");
+//        getSocketServer().getSocketPacketHelper().setReceiveTailString("\r\n");
 
-        getLocalSocketClient().connect();
-
-        getWindow().getDecorView().postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                getLocalSocketClient().send("你好");
-                try {
-                    getLocalSocketClient().send("HELLO".getBytes("UTF-8"));
-                }
-                catch (UnsupportedEncodingException e) {
-                    e.printStackTrace();
-                }
-
-                getLocalSocketClient().send("你也好");
-
-                new AsyncTask<Void, Void, Void>() {
-                    @Override
-                    protected Void doInBackground(Void... params) {
-                        self.getLocalSocketClient().send("ABC");
-
-                        TestModel testModel = new TestModel();
-                        testModel.subModels = new ArrayList<TestSubModel>();
-                        for (int i = 0; i < 100000; i++) {
-                            TestSubModel subModel = new TestSubModel();
-                            subModel.title = "title " + i;
-                            testModel.subModels.add(subModel);
-                        }
-
-                        SocketPacket packet = self.getLocalSocketClient().send(testModel.toJson().toString());
-                        Logger.log("packet size " + packet.getMessage().getBytes().length);
-
-                        self.getLocalSocketClient().send("一二三");
-                        return null;
-                    }
-
-                    @Override
-                    protected void onPostExecute(Void aVoid) {
-                        super.onPostExecute(aVoid);
-
-                    }
-                }.execute();
-            }
-        }, 5 * 1000);
+//        getLocalSocketClient().connect();
+//
+//        getWindow().getDecorView().postDelayed(new Runnable() {
+//            @Override
+//            public void run() {
+//                getLocalSocketClient().send("你好");
+//                try {
+//                    getLocalSocketClient().send("HELLO".getBytes("UTF-8"));
+//                }
+//                catch (UnsupportedEncodingException e) {
+//                    e.printStackTrace();
+//                }
+//
+//                getLocalSocketClient().send("你也好");
+//
+//                new AsyncTask<Void, Void, Void>() {
+//                    @Override
+//                    protected Void doInBackground(Void... params) {
+//                        self.getLocalSocketClient().send("ABC");
+//
+//                        TestModel testModel = new TestModel();
+//                        testModel.subModels = new ArrayList<TestSubModel>();
+//                        for (int i = 0; i < 100000; i++) {
+//                            TestSubModel subModel = new TestSubModel();
+//                            subModel.title = "title " + i;
+//                            testModel.subModels.add(subModel);
+//                        }
+//
+//                        SocketPacket packet = self.getLocalSocketClient().send(testModel.toJson().toString());
+//                        Logger.log("packet size " + packet.getMessage().getBytes().length);
+//
+//                        self.getLocalSocketClient().send("一二三");
+//                        return null;
+//                    }
+//
+//                    @Override
+//                    protected void onPostExecute(Void aVoid) {
+//                        super.onPostExecute(aVoid);
+//
+//                    }
+//                }.execute();
+//            }
+//        }, 5 * 1000);
 
 
     }

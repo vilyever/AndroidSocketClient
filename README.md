@@ -17,11 +17,19 @@ Step 2. Add the dependency in the form
 
 ```gradle
 dependencies {
-  compile 'com.github.vilyever:AndroidSocketClient:1.4.1'
+  compile 'com.github.vilyever:AndroidSocketClient:1.5.0'
 }
 ```
 
 ## Updates
+* 1.5.0
+</br>
+重构
+</br>
+抽离心跳包设置到HeartBeatHelper类中
+</br>
+抽离包尾判断到SocketPacketHelper类中
+
 * 1.4.1
 </br>
 增加禁用心跳包和超时自动断开
@@ -61,8 +69,8 @@ SocketClient socketClient = new SocketClient("192.168.1.1", 80);
 socketClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
     @Override
     public void onConnected(SocketClient client) {
-        socketClient.send("message"); // 发送String消息，使用默认编码
-        socketClient.send("message".getBytes()); // 发送byte[]消息
+        socketClient.sendString("message"); // 发送String消息，使用默认编码
+        socketClient.sendData("message".getBytes()); // 发送byte[]消息
     }
 
     @Override
@@ -79,15 +87,24 @@ socketClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
 
 socketClient.setConnectionTimeout(1000 * 15); // 设置连接超时时长
 
-socketClient.setHeartBeatInterval(1000 * 30); // 设置心跳包发送间隔
+socketClient.setCharsetName("UTF-8"); // 设置发送和接收String消息的默认编码
 
-socketClient.setRemoteNoReplyAliveTimeout(1000 * 60); // 设置远程端在多长时间没有消息发送到本地时自动断开连接
+socketClient.getHeartBeatHelper().setSendString("heart beat"); // 设置自动发送心跳包的字符串，若为null则不发送心跳包
+socketClient.getHeartBeatHelper().setSendData("heart beat".getBytes()); // 同上
+socketClient.getHeartBeatHelper().setHeartBeatInterval(30 * 1000); // 设置自动发送心跳包的时间间隔，若值小于0则不发送心跳包
+
+socketClient.getHeartBeatHelper().setReceiveString("heart beat from remote"); // 设置从远程端接收的心跳包字符串，onResponse回调将过滤此信息，若为null则不过滤
+socketClient.getHeartBeatHelper().setReceiveData("heart beat from remote".getBytes()); // 同上
+
+socketClient.getHeartBeatHelper().setRemoteNoReplyAliveTimeout(60 * 1000); // 设置远程端多长时间内没有消息发送到本地就自动断开连接，若值小于0则不自动断开
 
 socketClient.getPollingHelper().registerQueryResponse("query", "response"); // 设置自动应答键值对，即收到"query"时自动发送"response"
 
-socketClient.setSupportReadLine(false); // 设置是否支持对每条消息添加换行符分割，默认为true
+socketClient.getSocketPacketHelper().setSendTailString("\r\n"); // 设置发送消息时自动在消息尾部添加的信息，远程端收到此信息后表示一条消息结束，用于解决粘包分包问题，若为null则不添加尾部信息
+socketClient.getSocketPacketHelper().setSendTailData("\r\n".getBytes()); // 同上
 
-socketClient.setCharsetName("UTF-8"); // 设置发送String消息的默认编码
+socketClient.getSocketPacketHelper().setReceiveTailString("\r\n"); // 设置接收消息时判断消息结束的尾部信息，用于解决粘包分包问题，若为null则每次读取InputStream直到其为空，可能出现粘包问题
+socketClient.getSocketPacketHelper().setReceiveTailData("\r\n".getBytes()); // 同上
 
 socketClient.connect(); // 连接，异步进行
 
