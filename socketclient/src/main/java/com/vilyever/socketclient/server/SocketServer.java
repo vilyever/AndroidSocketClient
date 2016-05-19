@@ -306,10 +306,10 @@ public class SocketServer implements SocketClient.SocketDelegate {
 
             switch (MessageType.typeFromWhat(msg.what)) {
                 case StopListen:
-                    this.referenceSocketServer.get().onSocketServerStopListen();
+                    this.referenceSocketServer.get().internalOnSocketServerStopListen();
                     break;
                 case ClientConnected:
-                    this.referenceSocketServer.get().onSocketServerClientConnected((SocketServerClient) msg.obj);
+                    this.referenceSocketServer.get().internalOnSocketServerClientConnected((SocketServerClient) msg.obj);
                     break;
             }
         }
@@ -339,7 +339,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
 
     @Override
     public void onDisconnected(SocketClient client) {
-        onSocketServerClientDisconnected((SocketServerClient) client);
+        internalOnSocketServerClientDisconnected((SocketServerClient) client);
     }
 
     @Override
@@ -350,7 +350,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
 
     /* Protected Methods */
     @WorkerThread
-    protected SocketServerClient getSocketServerClient(Socket socket) {
+    protected SocketServerClient internalGetSocketServerClient(Socket socket) {
         return new SocketServerClient(socket);
     }
 
@@ -367,12 +367,12 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     @CallSuper
-    protected void onSocketServerStopListen() {
+    protected void internalOnSocketServerStopListen() {
         setListening(false);
         this.listenThread = null;
         this.runningServerSocket = null;
 
-        disconnectAllClients();
+        internalDisconnectAllClients();
 
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
@@ -383,7 +383,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     @CallSuper
-    protected void onSocketServerClientConnected(SocketServerClient socketServerClient) {
+    protected void internalOnSocketServerClientConnected(SocketServerClient socketServerClient) {
         getRunningSocketServerClients().add(socketServerClient);
 
         socketServerClient.registerSocketDelegate(this);
@@ -402,9 +402,8 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     @CallSuper
-    protected void onSocketServerClientDisconnected(SocketServerClient socketServerClient) {
-
-        self.getRunningSocketServerClients().remove(socketServerClient);
+    protected void internalOnSocketServerClientDisconnected(SocketServerClient socketServerClient) {
+        getRunningSocketServerClients().remove(socketServerClient);
 
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
@@ -415,11 +414,11 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     /* Private Methods */
-    private boolean checkServerSocketAvailable() {
+    private boolean internalCheckServerSocketAvailable() {
         return getRunningServerSocket() != null && !getRunningServerSocket().isClosed();
     }
 
-    private void disconnectAllClients() {
+    private void internalDisconnectAllClients() {
         while (getRunningSocketServerClients().size() > 0) {
             SocketServerClient client = getRunningSocketServerClients().get(0);
             getRunningSocketServerClients().remove(client);
@@ -442,12 +441,12 @@ public class SocketServer implements SocketClient.SocketDelegate {
         public void run() {
             super.run();
             setRunning(true);
-            while (!Thread.interrupted() && self.checkServerSocketAvailable()) {
+            while (!Thread.interrupted() && self.internalCheckServerSocketAvailable()) {
                 Socket socket = null;
                 try {
                     socket = self.getRunningServerSocket().accept();
 
-                    SocketServerClient socketServerClient = self.getSocketServerClient(socket);
+                    SocketServerClient socketServerClient = self.internalGetSocketServerClient(socket);
 
                     Message message = Message.obtain();
                     message.what = UIHandler.MessageType.ClientConnected.what();

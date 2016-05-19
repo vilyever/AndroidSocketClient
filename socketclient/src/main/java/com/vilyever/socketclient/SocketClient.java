@@ -389,7 +389,9 @@ public class SocketClient {
 
                 @Override
                 public void onFinish() {
-                    this.start();
+                    if (self.isConnected()) {
+                        this.start();
+                    }
                 }
             };
 

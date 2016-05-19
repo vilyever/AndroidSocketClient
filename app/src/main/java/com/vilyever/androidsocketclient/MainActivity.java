@@ -13,6 +13,7 @@ import com.vilyever.socketclient.server.SocketServerClient;
 import com.vilyever.socketclient.util.IPUtil;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class MainActivity extends AppCompatActivity {
     final MainActivity self = this;
@@ -75,6 +76,8 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket) {
                         Logger.log("size " + responsePacket.getData().length + " ->" + responsePacket.getMessage().replaceAll("\\r", ""));
+                        Logger.log("data " + Arrays.toString(responsePacket.getData()));
+                        Logger.log("crlf " + Arrays.toString("\r\n".getBytes()));
                     }
                 });
             }
