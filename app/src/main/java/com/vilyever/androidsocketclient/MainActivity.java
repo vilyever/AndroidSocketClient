@@ -9,8 +9,8 @@ import android.util.Log;
 import com.vilyever.jsonmodel.JsonModel;
 import com.vilyever.logger.Logger;
 import com.vilyever.socketclient.SocketClient;
-import com.vilyever.socketclient.SocketPacket;
-import com.vilyever.socketclient.SocketResponsePacket;
+import com.vilyever.socketclient.helper.SocketPacket;
+import com.vilyever.socketclient.helper.SocketResponsePacket;
 import com.vilyever.socketclient.server.SocketServer;
 import com.vilyever.socketclient.server.SocketServerClient;
 import com.vilyever.socketclient.util.IPUtil;
@@ -54,42 +54,41 @@ public class MainActivity extends AppCompatActivity {
         getSocketServer().registerSocketServerDelegate(new SocketServer.SocketServerDelegate() {
             @Override
             public void onServerBeginListen(SocketServer socketServer, int port) {
-                Logger.log("begin listen " + port);
+                Logger.log("SocketServer: begin listen " + port);
             }
 
             @Override
             public void onServerStopListen(SocketServer socketServer, int port) {
-                Logger.log("stop listen " + port);
+                Logger.log("SocketServer: stop listen " + port);
             }
 
             @Override
             public void onClientConnected(SocketServer socketServer, SocketServerClient socketServerClient) {
-                Logger.log("socketServer onClientConnected");
+                Logger.log("SocketServer: onClientConnected");
 
                 self.setServerListeningSocketServerClient(socketServerClient);
                 socketServerClient.registerSocketDelegate(new SocketClient.SocketDelegate() {
                     @Override
                     public void onConnected(SocketClient client) {
-
                     }
 
                     @Override
                     public void onDisconnected(SocketClient client) {
-                        Logger.log("serverListeningSocketServerClient onDisconnected");
                     }
 
                     @Override
                     public void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket) {
 //                        Logger.log("serverListeningSocketServerClient onResponse \n" + responsePacket.getMessage());
-                        Logger.log("serverListeningSocketServerClient onResponse length " + responsePacket.getMessage().length());
-                        Log.d("Logger", "serverListeningSocketServerClient onResponse \n" + responsePacket.getMessage());
+//                        Logger.log("serverListeningSocketServerClient onResponse length " + responsePacket.getMessage().length());
+//                        Log.d("Logger", "serverListeningSocketServerClient onResponse \n" + responsePacket.getMessage());
+                        Log.d("Logger", "size " + responsePacket.getData().length + " ->" + responsePacket.getMessage().replaceAll("\\r", ""));
                     }
                 });
             }
 
             @Override
             public void onClientDisconnected(SocketServer socketServer, SocketServerClient socketServerClient) {
-                Logger.log("socketServer onClientDisconnected");
+                Logger.log("SocketServer: onClientDisconnected");
                 self.setServerListeningSocketServerClient(null);
             }
         });
@@ -98,18 +97,19 @@ public class MainActivity extends AppCompatActivity {
         getLocalSocketClient().registerSocketDelegate(new SocketClient.SocketDelegate() {
             @Override
             public void onConnected(SocketClient client) {
-                Logger.log("localSocketClient onConnected");
-                getLocalSocketClient().send("再见");
+                Logger.log("SocketClient: internalOnConnected");
+                getLocalSocketClient().send("helo");
+                getLocalSocketClient().send("再见\r\nle\r\nbaichi\r\nwahaha123\niii");
             }
 
             @Override
             public void onDisconnected(SocketClient client) {
-                Logger.log("localSocketClient onDisconnected");
+                Logger.log("SocketClient: internalOnDisconnected");
             }
 
             @Override
             public void onResponse(SocketClient client, @NonNull SocketResponsePacket responsePacket) {
-                Logger.log("localSocketClient onResponse \n" + responsePacket.getMessage());
+                Logger.log("SocketClient: onResponse \n" + responsePacket.getMessage());
             }
         });
 
@@ -132,6 +132,11 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        getLocalSocketClient().getSocketPacketHelper().setSendTailString("\r\n");
+        getLocalSocketClient().getSocketPacketHelper().setReceiveTailString("\r\n");
+        getSocketServer().getSocketPacketHelper().setSendTailString("\r\n");
+        getSocketServer().getSocketPacketHelper().setReceiveTailString("\r\n");
+
         getLocalSocketClient().connect();
 
         getWindow().getDecorView().postDelayed(new Runnable() {
@@ -145,12 +150,7 @@ public class MainActivity extends AppCompatActivity {
                     e.printStackTrace();
                 }
 
-                getLocalSocketClient().send(SocketPacket.DefaultPollingQueryMessage);
-
                 getLocalSocketClient().send("你也好");
-
-
-
 
                 new AsyncTask<Void, Void, Void>() {
                     @Override

@@ -1,5 +1,6 @@
 package com.vilyever.socketclient;
 
+import android.os.AsyncTask;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.Looper;
@@ -7,11 +8,16 @@ import android.os.Message;
 import android.support.annotation.CallSuper;
 import android.support.annotation.NonNull;
 import android.support.annotation.UiThread;
+import android.util.Log;
 
+import com.vilyever.socketclient.helper.HeartBeatHelper;
+import com.vilyever.socketclient.helper.PollingHelper;
+import com.vilyever.socketclient.helper.SocketInputReader;
+import com.vilyever.socketclient.helper.SocketPacket;
+import com.vilyever.socketclient.helper.SocketPacketHelper;
+import com.vilyever.socketclient.helper.SocketResponsePacket;
 import com.vilyever.socketclient.util.CharsetNames;
 import com.vilyever.socketclient.util.ExceptionThrower;
-import com.vilyever.socketclient.util.SocketInputReader;
-import com.vilyever.socketclient.util.SocketSplitter;
 import com.vilyever.socketclient.util.StringValidation;
 
 import java.io.IOException;
@@ -35,10 +41,6 @@ public class SocketClient {
     final SocketClient self = this;
 
     public static final int DefaultConnectionTimeout = 1000 * 15;
-    public static final long DefaultHeartBeatInterval = 1000 * 30;
-    public static final long NoneHeartBeatInterval = -1;
-    public static final long DefaultRemoteNoReplyAliveTimeout = DefaultHeartBeatInterval * 2;
-    public static final long NoneRemoteNoReplyAliveTimeout = -1;
 
     /* Constructors */
     public SocketClient(@NonNull String remoteIP, int remotePort) {
@@ -62,9 +64,12 @@ public class SocketClient {
     }
 
     public void disconnect() {
-        if (isDisconnected()) {
+        if (isDisconnected() || isDisconnecting()) {
             return;
         }
+
+        setDisconnecting(true);
+        Log.d("logger", "disconnect " + getClass().getSimpleName());
 
         if (!getRunningSocket().isClosed()
                 || isConnecting()) {
@@ -80,7 +85,7 @@ public class SocketClient {
                     getRunningSocket().close();
                 }
                 catch (IOException e) {
-//                    e.printStackTrace();
+                    e.printStackTrace();
                 }
                 this.runningSocket = null;
             }
@@ -103,12 +108,20 @@ public class SocketClient {
     }
 
     /**
-     * 与{@link #send(byte[])} 相同，增加一个别名
-     * @param data
+     * 与{@link #sendString(String)} 相同，增加一个别名
      * @return
      */
-    public SocketPacket sendBytes(byte[] data) {
-        return send(data);
+    public SocketPacket send(String message) {
+        return sendString(message);
+    }
+
+    public SocketPacket sendString(String message) {
+        if (!isConnected()) {
+            return null;
+        }
+        SocketPacket socketPacket = new SocketPacket(message);
+        getSendThread().enqueueSocketPacket(socketPacket);
+        return socketPacket;
     }
 
     /**
@@ -116,27 +129,27 @@ public class SocketClient {
      * @return
      */
     public SocketPacket send(byte[] data) {
+        return sendData(data);
+    }
+
+    /**
+     * 与{@link #send(byte[])} 相同，增加一个别名
+     * @param data
+     * @return
+     */
+    public SocketPacket sendBytes(byte[] data) {
+        return sendData(data);
+    }
+
+    /**
+     * @param data
+     * @return
+     */
+    public SocketPacket sendData(byte[] data) {
         if (!isConnected()) {
             return null;
         }
         SocketPacket socketPacket = new SocketPacket(data);
-        getSendThread().enqueueSocketPacket(socketPacket);
-        return socketPacket;
-    }
-
-    /**
-     * 与{@link #send(String)} 相同，增加一个别名
-     * @return
-     */
-    public SocketPacket sendString(String message) {
-        return send(message);
-    }
-
-    public SocketPacket send(String message) {
-        if (!isConnected()) {
-            return null;
-        }
-        SocketPacket socketPacket = new SocketPacket(message);
         getSendThread().enqueueSocketPacket(socketPacket);
         return socketPacket;
     }
@@ -159,20 +172,6 @@ public class SocketClient {
 
     public boolean isConnecting() {
         return getState() == State.Connecting;
-    }
-
-    /**
-     * 禁用发送心跳包
-     */
-    public void disableHeartBeat() {
-        setHeartBeatInterval(NoneHeartBeatInterval);
-    }
-
-    /**
-     * 禁用自动断开
-     */
-    public void disableRemoteNoReplyAliveTimeout() {
-        setRemoteNoReplyAliveTimeout(NoneRemoteNoReplyAliveTimeout);
     }
 
     /**
@@ -248,6 +247,9 @@ public class SocketClient {
         return this;
     }
 
+    /**
+     * 远程IP
+     */
     private String remoteIP;
     public SocketClient setRemoteIP(String remoteIP) {
         if (!StringValidation.validateRegex(remoteIP, StringValidation.RegexIP)) {
@@ -260,6 +262,9 @@ public class SocketClient {
         return this.remoteIP;
     }
 
+    /**
+     * 远程端口
+     */
     private int remotePort;
     public SocketClient setRemotePort(int remotePort) {
         if (!StringValidation.validateRegex(String.format("%d", remotePort), StringValidation.RegexPort)) {
@@ -273,35 +278,8 @@ public class SocketClient {
     }
 
     /**
-     * 设置是否支持按行读取消息
-     * 若否则读取每一次缓冲返回一次消息
-     * 即受到的消息末尾是 '\r\n' 符号
-     * 此操作可以解决发送方发送过快时缓冲池内存有多条信息
+     * 连接超时时间
      */
-    private boolean supportReadLine = true;
-    public SocketClient setSupportReadLine(boolean supportReadLine) {
-        this.supportReadLine = supportReadLine;
-        return this;
-    }
-    public boolean isSupportReadLine() {
-        return this.supportReadLine;
-    }
-
-    /**
-     * 设置默认的编码格式
-     */
-    private String charsetName;
-    public SocketClient setCharsetName(String charsetName) {
-        this.charsetName = charsetName;
-        return this;
-    }
-    public String getCharsetName() {
-        if (this.charsetName == null) {
-            this.charsetName = CharsetNames.UTF_8;
-        }
-        return this.charsetName;
-    }
-
     private int connectionTimeout;
     public SocketClient setConnectionTimeout(int connectionTimeout) {
         if (connectionTimeout < 0) {
@@ -312,109 +290,6 @@ public class SocketClient {
     }
     public int getConnectionTimeout() {
         return this.connectionTimeout;
-    }
-
-    /**
-     * 远程端在一定时间间隔没有消息后自动断开
-     */
-    private long remoteNoReplyAliveTimeout = DefaultRemoteNoReplyAliveTimeout;
-    public SocketClient setRemoteNoReplyAliveTimeout(long remoteNoReplyAliveTimeout) {
-        if (remoteNoReplyAliveTimeout < 0) {
-            remoteNoReplyAliveTimeout = NoneRemoteNoReplyAliveTimeout;
-        }
-        this.remoteNoReplyAliveTimeout = remoteNoReplyAliveTimeout;
-        return this;
-    }
-    public long getRemoteNoReplyAliveTimeout() {
-        return this.remoteNoReplyAliveTimeout;
-    }
-
-    /**
-     * 心跳包信息
-     */
-    private byte[] heartBeatMessage = SocketPacket.DefaultHeartBeatMessage;
-    public SocketClient setHeartBeatMessage(String heartBeatMessage) {
-        return setHeartBeatMessageString(heartBeatMessage);
-    }
-    public SocketClient setHeartBeatMessageString(String heartBeatMessage) {
-        return setHeartBeatMessage(heartBeatMessage, getCharsetName());
-    }
-    public SocketClient setHeartBeatMessage(String heartBeatMessage, String charsetName) {
-        return setHeartBeatMessageString(heartBeatMessage, charsetName);
-    }
-    public SocketClient setHeartBeatMessageString(String heartBeatMessage, String charsetName) {
-        if (heartBeatMessage != null) {
-            return setHeartBeatMessage(heartBeatMessage.getBytes(Charset.forName(charsetName)));
-        }
-        else {
-            this.heartBeatMessage = null;
-            return this;
-        }
-    }
-    public SocketClient setHeartBeatMessage(byte[] heartBeatMessage) {
-        return setHeartBeatMessageBytes(heartBeatMessage);
-    }
-    public SocketClient setHeartBeatMessageBytes(byte[] heartBeatMessage) {
-        this.heartBeatMessage = heartBeatMessage;
-        return this;
-    }
-    public byte[] getHeartBeatMessage() {
-        return this.heartBeatMessage;
-    }
-
-    /**
-     * 心跳包发送间隔
-     */
-    private long heartBeatInterval = DefaultHeartBeatInterval;
-    public SocketClient setHeartBeatInterval(long heartBeatInterval) {
-        if (heartBeatInterval < 0) {
-            heartBeatInterval = NoneHeartBeatInterval;
-        }
-        this.heartBeatInterval = heartBeatInterval;
-        return this;
-    }
-    public long getHeartBeatInterval() {
-        return this.heartBeatInterval;
-    }
-
-    private long lastSendHeartBeatMessageTime;
-    protected SocketClient setLastSendHeartBeatMessageTime(long lastSendHeartBeatMessageTime) {
-        this.lastSendHeartBeatMessageTime = lastSendHeartBeatMessageTime;
-        return this;
-    }
-    protected long getLastSendHeartBeatMessageTime() {
-        return this.lastSendHeartBeatMessageTime;
-    }
-
-    private long lastReceiveMessageTime;
-    protected SocketClient setLastReceiveMessageTime(long lastReceiveMessageTime) {
-        this.lastReceiveMessageTime = lastReceiveMessageTime;
-        return this;
-    }
-    protected long getLastReceiveMessageTime() {
-        return this.lastReceiveMessageTime;
-    }
-
-    /**
-     * 心跳包发送计时器
-     */
-    private CountDownTimer hearBeatCountDownTimer;
-    protected CountDownTimer getHearBeatCountDownTimer() {
-        if (this.hearBeatCountDownTimer == null) {
-            this.hearBeatCountDownTimer = new CountDownTimer(Long.MAX_VALUE, 1000l) {
-                @Override
-                public void onTick(long millisUntilFinished) {
-                    self.onTimeTick();
-                }
-
-                @Override
-                public void onFinish() {
-                    self.getHearBeatCountDownTimer().start();
-                }
-            };
-
-        }
-        return this.hearBeatCountDownTimer;
     }
 
     /**
@@ -435,14 +310,93 @@ public class SocketClient {
     }
 
     /**
+     * 设置默认的编码格式
+     */
+    private String charsetName;
+    public SocketClient setCharsetName(String charsetName) {
+        if (charsetName == null) {
+            charsetName = CharsetNames.UTF_8;
+        }
+        this.charsetName = charsetName;
+        getSocketPacketHelper().setCharsetName(charsetName);
+        getHeartBeatHelper().setCharsetName(charsetName);
+        getPollingHelper().setCharsetName(charsetName);
+        return this;
+    }
+    public String getCharsetName() {
+        if (this.charsetName == null) {
+            this.charsetName = CharsetNames.UTF_8;
+        }
+        return this.charsetName;
+    }
+
+    /**
+     * 发送接收时对信息的处理
+     * 发送添加尾部信息
+     * 接收使用尾部信息截断消息
+     */
+    private SocketPacketHelper socketPacketHelper;
+    public SocketClient setSocketPacketHelper(SocketPacketHelper socketPacketHelper) {
+        this.socketPacketHelper = socketPacketHelper;
+        return this;
+    }
+    public SocketPacketHelper getSocketPacketHelper() {
+        if (this.socketPacketHelper == null) {
+            this.socketPacketHelper = new SocketPacketHelper(getCharsetName());
+        }
+        return this.socketPacketHelper;
+    }
+
+    /**
+     * 心跳包信息
+     */
+    private HeartBeatHelper heartBeatHelper;
+    public SocketClient setHeartBeatHelper(HeartBeatHelper heartBeatHelper) {
+        this.heartBeatHelper = heartBeatHelper;
+        return this;
+    }
+    public HeartBeatHelper getHeartBeatHelper() {
+        if (this.heartBeatHelper == null) {
+            this.heartBeatHelper = new HeartBeatHelper(getCharsetName());
+        }
+        return this.heartBeatHelper;
+    }
+
+    /**
      * 自动应答
      */
     private PollingHelper pollingHelper;
+    public SocketClient setPollingHelper(PollingHelper pollingHelper) {
+        this.pollingHelper = pollingHelper;
+        return this;
+    }
     public PollingHelper getPollingHelper() {
         if (this.pollingHelper == null) {
             this.pollingHelper = new PollingHelper(getCharsetName());
         }
         return this.pollingHelper;
+    }
+
+    /**
+     * 计时器
+     */
+    private CountDownTimer hearBeatCountDownTimer;
+    protected CountDownTimer getHearBeatCountDownTimer() {
+        if (this.hearBeatCountDownTimer == null) {
+            this.hearBeatCountDownTimer = new CountDownTimer(Long.MAX_VALUE, 1000l) {
+                @Override
+                public void onTick(long millisUntilFinished) {
+                    self.internalOnTimeTick();
+                }
+
+                @Override
+                public void onFinish() {
+                    this.start();
+                }
+            };
+
+        }
+        return this.hearBeatCountDownTimer;
     }
 
     private ConnectionThread connectionThread;
@@ -564,13 +518,13 @@ public class SocketClient {
 
             switch (MessageType.typeFromWhat(msg.what)) {
                 case Connected:
-                    this.referenceSocketClient.get().onConnected();
+                    this.referenceSocketClient.get().internalOnConnected();
                     break;
                 case Disconnected:
-                    this.referenceSocketClient.get().onDisconnected();
+                    this.referenceSocketClient.get().internalOnDisconnected();
                     break;
                 case ReceiveResponse:
-                    this.referenceSocketClient.get().onReceiveResponse((SocketResponsePacket) msg.obj);
+                    this.referenceSocketClient.get().internalOnReceiveResponse((SocketResponsePacket) msg.obj);
                     break;
             }
         }
@@ -588,6 +542,15 @@ public class SocketClient {
         }
     }
 
+    private boolean disconnecting;
+    protected SocketClient setDisconnecting(boolean disconnecting) {
+        this.disconnecting = disconnecting;
+        return this;
+    }
+    protected boolean isDisconnecting() {
+        return this.disconnecting;
+    }
+
     /* Overrides */
      
      
@@ -596,14 +559,14 @@ public class SocketClient {
     /* Protected Methods */
     @UiThread
     @CallSuper
-    protected void onConnected() {
+    protected void internalOnConnected() {
         setState(State.Connected);
 
         getSendThread().start();
         getReceiveThread().start();
 
-        setLastSendHeartBeatMessageTime(System.currentTimeMillis());
-        setLastReceiveMessageTime(System.currentTimeMillis());
+        getHeartBeatHelper().setLastSendHeartBeatMessageTime(System.currentTimeMillis());
+        getHeartBeatHelper().setLastReceiveMessageTime(System.currentTimeMillis());
 
         getHearBeatCountDownTimer().start();
 
@@ -618,7 +581,8 @@ public class SocketClient {
 
     @UiThread
     @CallSuper
-    protected void onDisconnected() {
+    protected void internalOnDisconnected() {
+        setDisconnecting(false);
         setState(State.Disconnected);
 
         getHearBeatCountDownTimer().cancel();
@@ -633,21 +597,21 @@ public class SocketClient {
 
     @UiThread
     @CallSuper
-    protected void onReceiveResponse(@NonNull SocketResponsePacket responsePacket) {
-        setLastReceiveMessageTime(System.currentTimeMillis());
+    protected void internalOnReceiveResponse(@NonNull SocketResponsePacket responsePacket) {
+        getHeartBeatHelper().setLastReceiveMessageTime(System.currentTimeMillis());
 
-        if (responsePacket.isMatch(getHeartBeatMessage())) {
-            onReceiveHeartBeat();
+        if (responsePacket.isMatch(getHeartBeatHelper().getReceiveData())) {
+            internalOnReceiveHeartBeat();
             return;
         }
 
         if (getPollingHelper().containsQuery(responsePacket.getData())) {
-            onReceivePollingQuery(responsePacket);
+            internalOnReceivePollingQuery(responsePacket);
             return;
         }
 
         if (getPollingHelper().containsResponse(responsePacket.getData())) {
-            onReceivePollingResponse(responsePacket);
+            internalOnReceivePollingResponse(responsePacket);
             return;
         }
 
@@ -659,7 +623,7 @@ public class SocketClient {
         }
     }
 
-    protected void onReceiveHeartBeat() {
+    protected void internalOnReceiveHeartBeat() {
 
         ArrayList<SocketHeartBeatDelegate> delegatesCopy =
                 (ArrayList<SocketHeartBeatDelegate>) getSocketHeartBeatDelegates().clone();
@@ -670,7 +634,7 @@ public class SocketClient {
     }
 
     @CallSuper
-    protected void onReceivePollingQuery(SocketResponsePacket pollingQueryPacket) {
+    protected void internalOnReceivePollingQuery(SocketResponsePacket pollingQueryPacket) {
         send(getPollingHelper().getResponse(pollingQueryPacket.getData()));
 
         ArrayList<SocketPollingDelegate> delegatesCopy =
@@ -681,7 +645,7 @@ public class SocketClient {
         }
     }
 
-    protected void onReceivePollingResponse(SocketResponsePacket pollingResponsePacket) {
+    protected void internalOnReceivePollingResponse(SocketResponsePacket pollingResponsePacket) {
 
         ArrayList<SocketPollingDelegate> delegatesCopy =
                 (ArrayList<SocketPollingDelegate>) getSocketPollingDelegate().clone();
@@ -692,18 +656,18 @@ public class SocketClient {
     }
 
     @CallSuper
-    protected void onTimeTick() {
+    protected void internalOnTimeTick() {
         long currentTime = System.currentTimeMillis();
 
-        if (getHeartBeatInterval() != NoneHeartBeatInterval && getHeartBeatMessage() != null) {
-            if (currentTime - getLastSendHeartBeatMessageTime() >= getHeartBeatInterval()) {
-                send(getHeartBeatMessage());
-                setLastSendHeartBeatMessageTime(currentTime);
+        if (getHeartBeatHelper().shouldSendHeartBeat()) {
+            if (currentTime - getHeartBeatHelper().getLastSendHeartBeatMessageTime() >= getHeartBeatHelper().getHeartBeatInterval()) {
+                send(getHeartBeatHelper().getSendData());
+                getHeartBeatHelper().setLastSendHeartBeatMessageTime(currentTime);
             }
         }
 
-        if (getRemoteNoReplyAliveTimeout() != NoneRemoteNoReplyAliveTimeout) {
-            if (currentTime - getLastReceiveMessageTime() >= getRemoteNoReplyAliveTimeout()) {
+        if (getHeartBeatHelper().shouldAutoDisconnectWhenRemoteNoReplyAliveTimeout()) {
+            if (currentTime - getHeartBeatHelper().getLastReceiveMessageTime() >= getHeartBeatHelper().getRemoteNoReplyAliveTimeout()) {
                 disconnect();
             }
         }
@@ -749,11 +713,25 @@ public class SocketClient {
             return sendingQueue;
         }
 
-        public void enqueueSocketPacket(SocketPacket socketPacket) {
-            getSendingQueue().add(socketPacket);
-            synchronized (this.sendLock) {
-                this.sendLock.notifyAll();
-            }
+        public void enqueueSocketPacket(final SocketPacket socketPacket) {
+            new AsyncTask<Void, Void, Void>() {
+                @Override
+                protected Void doInBackground(Void... params) {
+                    try {
+                        getSendingQueue().put(socketPacket);
+                    }
+                    catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    return null;
+                }
+
+                @Override
+                protected void onPostExecute(Void aVoid) {
+                    super.onPostExecute(aVoid);
+
+                }
+            }.execute();
         }
 
         public void cancel(int socketPacketID) {
@@ -770,53 +748,41 @@ public class SocketClient {
         @Override
         public void run() {
             super.run();
-
             while (self.isConnected() && !Thread.interrupted()) {
                 SocketPacket packet;
-                while ((packet = getSendingQueue().poll()) != null) {
-                    long lastSendTime = System.currentTimeMillis();
-
-                    byte[] data = packet.getData();
-                    if (data == null && packet.getMessage() != null) {
-                        try {
-                            String message = packet.getMessage();
-                            data = message.getBytes(self.getCharsetName());
-                        }
-                        catch (UnsupportedEncodingException e) {
-                            e.printStackTrace();
-                        }
-                    }
-
-                    if (data != null) {
-                        try {
-                            if (self.isSupportReadLine()) {
-                                data = Arrays.copyOf(data, data.length + 2);
-                                data[data.length - 2] = SocketSplitter.SplitterFirst;
-                                data[data.length - 1] = SocketSplitter.SplitterLast;
+                try {
+                    while ((packet = getSendingQueue().take()) != null) {
+                        byte[] data = packet.getData();
+                        if (data == null && packet.getMessage() != null) {
+                            try {
+                                String message = packet.getMessage();
+                                data = message.getBytes(self.getCharsetName());
                             }
-                            self.getRunningSocket().getOutputStream().write(data);
-                            self.getRunningSocket().getOutputStream().flush();
+                            catch (UnsupportedEncodingException e) {
+                                e.printStackTrace();
+                            }
                         }
-                        catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
 
-                    // 若不支持换行符分割消息，增加每一条消息的发送间隔，此举在本地java端socket互连时可解决快速发送时多条消息混杂问题
-                    if (!self.isSupportReadLine()) {
-                        while (System.currentTimeMillis() - lastSendTime < 3) {
-                            Thread.yield();
+                        if (data != null) {
+                            try {
+                                byte[] tailData = self.getSocketPacketHelper().getSendTailData();
+                                if (tailData != null) {
+                                    data = Arrays.copyOf(data, data.length + tailData.length);
+                                    for (int i = 0; i < tailData.length; i++) {
+                                        data[data.length - tailData.length + i] = tailData[i];
+                                    }
+                                }
+                                self.getRunningSocket().getOutputStream().write(data);
+                                self.getRunningSocket().getOutputStream().flush();
+                            }
+                            catch (IOException e) {
+//                                e.printStackTrace();
+                            }
                         }
                     }
                 }
-
-                synchronized (this.sendLock) {
-                    try {
-                        this.sendLock.wait();
-                    }
-                    catch (InterruptedException e) {
-//                        e.printStackTrace();
-                    }
+                catch (InterruptedException e) {
+//                    e.printStackTrace();
                 }
             }
         }
@@ -827,11 +793,12 @@ public class SocketClient {
         public void run() {
             super.run();
 
+            SocketInputReader inputReader = null;
             try {
-                SocketInputReader inputReader = new SocketInputReader(self.getRunningSocket().getInputStream());
+                inputReader = new SocketInputReader(self.getRunningSocket().getInputStream());
 
                 while (self.isConnected() && !Thread.interrupted()) {
-                    byte[] result = inputReader.readBytes();
+                    byte[] result = inputReader.readBytes(self.getSocketPacketHelper().getReceiveTailData());
                     if (result == null) {
                         self.disconnect();
                         break;

@@ -1,8 +1,5 @@
-package com.vilyever.socketclient;
+package com.vilyever.socketclient.helper;
 
-import com.vilyever.socketclient.util.CharsetNames;
-
-import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -14,18 +11,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class SocketPacket {
     private final SocketPacket self = this;
-
-    /**
-     * sending this message every heartbeat to make sure current client alive
-     */
-    public static final byte[] DefaultHeartBeatMessage = "$HB$".getBytes(Charset.forName(CharsetNames.UTF_8));
-
-    /**
-     * sending DefaultPollingQueryMessage will response DefaultPollingResponseMessage immediately
-     * sending DefaultPollingResponseMessage will response nothing
-     */
-    public static final byte[] DefaultPollingQueryMessage = "$PQ$".getBytes(Charset.forName(CharsetNames.UTF_8));
-    public static final byte[] DefaultPollingResponseMessage = "$PR$".getBytes(Charset.forName(CharsetNames.UTF_8));
 
     private static final AtomicInteger IDAtomic = new AtomicInteger();
 
@@ -43,6 +28,10 @@ public class SocketPacket {
     }
 
     public static SocketPacket newInstanceWithBytes(byte[] data) {
+        return newInstanceWithData(data);
+    }
+
+    public static SocketPacket newInstanceWithData(byte[] data) {
         return new SocketPacket(data);
     }
 

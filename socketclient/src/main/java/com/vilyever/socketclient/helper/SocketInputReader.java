@@ -1,9 +1,10 @@
-package com.vilyever.socketclient.util;
+package com.vilyever.socketclient.helper;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 
 /**
@@ -23,13 +24,12 @@ public class SocketInputReader extends Reader {
         super(inputStream);
         this.inputStream = inputStream;
     }
-    
+
     /* Public Methods */
     
     
     /* Properties */
-    
-    
+
     /* Overrides */
     @Override
     public void close() throws IOException {
@@ -46,29 +46,45 @@ public class SocketInputReader extends Reader {
         throw new IOException("read() is not support for SocketInputReader, try readBytes().");
     }
 
-    public byte[] readBytes() throws IOException {
+    public byte[] readBytes(byte[] tail) throws IOException {
         synchronized (lock) {
-            if (!isOpen()) {
+            if (!internalIsOpen()) {
                 throw new IOException("InputStreamReader is closed");
             }
 
             try {
                 ArrayList<Byte> list = new ArrayList<>();
                 int c;
+                boolean readOver = false;
+
                 while (-1 != (c = this.inputStream.read())) {
                     list.add((byte) c);
 
-                    if (list.size() > 2
-                        && list.get(list.size() - 1) == SocketSplitter.SplitterLast
-                        && list.get(list.size() - 2) == SocketSplitter.SplitterFirst) {
-                        list.remove(list.size() - 1);
-                        list.remove(list.size() - 1);
-                        break;
+                    if (tail != null) {
+                        if (list.size() > tail.length) {
+                            byte[] inputTail = new byte[tail.length];
+                            for (int i = 0; i < inputTail.length; i++) {
+                                inputTail[i] = list.get(list.size() - inputTail.length + i);
+                            }
+                            if (Arrays.equals(tail, inputTail)) {
+                                for (int i = 0; i < inputTail.length; i++) {
+                                    list.remove(list.size() - 1);
+                                }
+                                readOver = true;
+                                break;
+                            }
+                        }
                     }
+                    else {
+                        if (this.inputStream.available() == 0) {
+                            readOver = true;
+                            break;
+                        }
+                    }
+                }
 
-                    if (this.inputStream.available() == 0) {
-                        break;
-                    }
+                if (!readOver) {
+                    return null;
                 }
 
                 if (list.size() == 0) {
@@ -107,14 +123,14 @@ public class SocketInputReader extends Reader {
      
      
     /* Private Methods */
-    public static void checkOffsetAndCount(int arrayLength, int offset, int count) {
+    public static void internalCheckOffsetAndCount(int arrayLength, int offset, int count) {
         if ((offset | count) < 0 || offset > arrayLength || arrayLength - offset < count) {
             throw new ArrayIndexOutOfBoundsException("arrayLength=" + arrayLength + "; offset=" + offset
                                                      + "; count=" + count);
         }
     }
 
-    private boolean isOpen() {
+    private boolean internalIsOpen() {
         return this.inputStream != null;
     }
 }

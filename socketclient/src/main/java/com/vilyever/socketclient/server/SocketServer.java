@@ -7,10 +7,11 @@ import android.support.annotation.CallSuper;
 import android.support.annotation.NonNull;
 import android.support.annotation.WorkerThread;
 
-import com.vilyever.socketclient.PollingHelper;
 import com.vilyever.socketclient.SocketClient;
-import com.vilyever.socketclient.SocketPacket;
-import com.vilyever.socketclient.SocketResponsePacket;
+import com.vilyever.socketclient.helper.HeartBeatHelper;
+import com.vilyever.socketclient.helper.PollingHelper;
+import com.vilyever.socketclient.helper.SocketPacketHelper;
+import com.vilyever.socketclient.helper.SocketResponsePacket;
 import com.vilyever.socketclient.util.CharsetNames;
 import com.vilyever.socketclient.util.ExceptionThrower;
 import com.vilyever.socketclient.util.StringValidation;
@@ -19,7 +20,6 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 
 /**
@@ -85,20 +85,6 @@ public class SocketServer implements SocketClient.SocketDelegate {
 
     public String getIP() {
         return getRunningServerSocket().getLocalSocketAddress().toString().substring(1);
-    }
-
-    /**
-     * 统一禁用发送心跳包
-     */
-    public void disableHeartBeat() {
-        setHeartBeatInterval(SocketClient.NoneHeartBeatInterval);
-    }
-
-    /**
-     * 统一禁用自动断开
-     */
-    public void disableRemoteNoReplyAliveTimeout() {
-        setRemoteNoReplyAliveTimeout(SocketClient.NoneRemoteNoReplyAliveTimeout);
     }
 
     /**
@@ -170,21 +156,6 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     /**
-     * 统一配置是否支持按行读取消息
-     * 若否则读取每一次缓冲返回一次消息
-     * 即受到的消息末尾是 '\r\n' 符号
-     * 此操作可以解决发送方发送过快时缓冲池内存有多条信息
-     */
-    private boolean supportReadLine = true;
-    public SocketServer setSupportReadLine(boolean supportReadLine) {
-        this.supportReadLine = supportReadLine;
-        return this;
-    }
-    public boolean isSupportReadLine() {
-        return this.supportReadLine;
-    }
-
-    /**
      * 统一配置默认的编码格式
      */
     private String charsetName;
@@ -200,88 +171,67 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
 
     /**
-     * 统一配置心跳包信息
-     */
-    private byte[] heartBeatMessage = SocketPacket.DefaultHeartBeatMessage;
-    public SocketServer setHeartBeatMessage(String heartBeatMessage) {
-        return setHeartBeatMessageString(heartBeatMessage);
-    }
-    public SocketServer setHeartBeatMessageString(String heartBeatMessage) {
-        return setHeartBeatMessage(heartBeatMessage, getCharsetName());
-    }
-    public SocketServer setHeartBeatMessage(String heartBeatMessage, String charsetName) {
-        return setHeartBeatMessageString(heartBeatMessage, charsetName);
-    }
-    public SocketServer setHeartBeatMessageString(String heartBeatMessage, String charsetName) {
-        if (heartBeatMessage != null) {
-            return setHeartBeatMessage(heartBeatMessage.getBytes(Charset.forName(charsetName)));
-        }
-        else {
-            this.heartBeatMessage = null;
-            return this;
-        }
-    }
-    public SocketServer setHeartBeatMessage(byte[] heartBeatMessage) {
-        return setHeartBeatMessageBytes(heartBeatMessage);
-    }
-    public SocketServer setHeartBeatMessageBytes(byte[] heartBeatMessage) {
-        this.heartBeatMessage = heartBeatMessage;
-        return this;
-    }
-    public byte[] getHeartBeatMessage() {
-        return this.heartBeatMessage;
-    }
-
-    /**
-     * 统一配置心跳包发送间隔
-     */
-    private long heartBeatInterval = SocketServerClient.DefaultHeartBeatInterval;
-    public SocketServer setHeartBeatInterval(long heartBeatInterval) {
-        if (heartBeatInterval < 0) {
-            heartBeatInterval = SocketClient.NoneHeartBeatInterval;
-        }
-        this.heartBeatInterval = heartBeatInterval;
+    * 发送接收时对信息的处理
+    * 发送添加尾部信息
+    * 接收使用尾部信息截断消息
+    */
+    private SocketPacketHelper socketPacketHelper;
+    public SocketServer setSocketPacketHelper(SocketPacketHelper socketPacketHelper) {
+        this.socketPacketHelper = socketPacketHelper;
 
         ArrayList<SocketServerClient> copyList =
                 (ArrayList<SocketServerClient>) getRunningSocketServerClients().clone();
         int count = copyList.size();
         for (int i = 0; i < count; ++i) {
-            copyList.get(i).setHeartBeatInterval(heartBeatInterval);
+            copyList.get(i).setSocketPacketHelper(this.socketPacketHelper);
         }
 
         return this;
     }
-    public long getHeartBeatInterval() {
-        return this.heartBeatInterval;
+    public SocketPacketHelper getSocketPacketHelper() {
+        if (this.socketPacketHelper == null) {
+            this.socketPacketHelper = new SocketPacketHelper(getCharsetName());
+        }
+        return this.socketPacketHelper;
     }
 
     /**
-     * 统一配置超时无消息断开间隔
+     * 心跳包信息
      */
-    private long remoteNoReplyAliveTimeout = SocketServerClient.DefaultRemoteNoReplyAliveTimeout;
-    public SocketServer setRemoteNoReplyAliveTimeout(long remoteNoReplyAliveTimeout) {
-        if (remoteNoReplyAliveTimeout < 0) {
-            remoteNoReplyAliveTimeout = SocketClient.NoneRemoteNoReplyAliveTimeout;
-        }
-        this.remoteNoReplyAliveTimeout = remoteNoReplyAliveTimeout;
+    private HeartBeatHelper heartBeatHelper;
+    public SocketServer setHeartBeatHelper(HeartBeatHelper heartBeatHelper) {
+        this.heartBeatHelper = heartBeatHelper;
 
         ArrayList<SocketServerClient> copyList =
                 (ArrayList<SocketServerClient>) getRunningSocketServerClients().clone();
         int count = copyList.size();
         for (int i = 0; i < count; ++i) {
-            copyList.get(i).setRemoteNoReplyAliveTimeout(remoteNoReplyAliveTimeout);
+            copyList.get(i).setHeartBeatHelper(this.heartBeatHelper);
         }
-
         return this;
     }
-    public long getRemoteNoReplyAliveTimeout() {
-        return this.remoteNoReplyAliveTimeout;
+    public HeartBeatHelper getHeartBeatHelper() {
+        if (this.heartBeatHelper == null) {
+            this.heartBeatHelper = new HeartBeatHelper(getCharsetName());
+        }
+        return this.heartBeatHelper;
     }
 
     /**
      * 统一配置自动应答
      */
     private PollingHelper pollingHelper;
+    public SocketServer setPollingHelper(PollingHelper pollingHelper) {
+        this.pollingHelper = pollingHelper;
+
+        ArrayList<SocketServerClient> copyList =
+                (ArrayList<SocketServerClient>) getRunningSocketServerClients().clone();
+        int count = copyList.size();
+        for (int i = 0; i < count; ++i) {
+            copyList.get(i).setPollingHelper(this.pollingHelper);
+        }
+        return this;
+    }
     public PollingHelper getPollingHelper() {
         if (this.pollingHelper == null) {
             this.pollingHelper = new PollingHelper(getCharsetName());
@@ -438,11 +388,9 @@ public class SocketServer implements SocketClient.SocketDelegate {
 
         socketServerClient.registerSocketDelegate(this);
 
-        socketServerClient.setSupportReadLine(isSupportReadLine());
         socketServerClient.setCharsetName(getCharsetName());
-        socketServerClient.setHeartBeatMessage(getHeartBeatMessage());
-        socketServerClient.setHeartBeatInterval(getHeartBeatInterval());
-        socketServerClient.setRemoteNoReplyAliveTimeout(getRemoteNoReplyAliveTimeout());
+        socketServerClient.setSocketPacketHelper(getSocketPacketHelper());
+        socketServerClient.setHeartBeatHelper(getHeartBeatHelper());
         socketServerClient.getPollingHelper().append(getPollingHelper());
 
         ArrayList<SocketServerDelegate> copyList =

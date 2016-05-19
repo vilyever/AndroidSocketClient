@@ -1,4 +1,4 @@
-package com.vilyever.socketclient;
+package com.vilyever.socketclient.helper;
 
 import java.util.Arrays;
 

@@ -1,4 +1,4 @@
-package com.vilyever.socketclient;
+package com.vilyever.socketclient.helper;
 
 import com.vilyever.socketclient.util.BytesWrapper;
 
@@ -17,41 +17,52 @@ public class PollingHelper {
 
     
     /* Constructors */
-    public PollingHelper(String defaultCharsetName) {
-        this.defaultCharsetName = defaultCharsetName;
-
-        registerQueryResponse(SocketPacket.DefaultPollingQueryMessage, SocketPacket.DefaultPollingResponseMessage);
+    public PollingHelper(String charsetName) {
+        this.charsetName = charsetName;
     }
 
     
     /* Public Methods */
     public PollingHelper registerQueryResponse(String query, String response) {
-        return registerQueryResponse(query, response, getDefaultCharsetName());
+        if (query == null || response == null) {
+            return this;
+        }
+        return registerQueryResponse(query.getBytes(Charset.forName(getCharsetName())), response.getBytes(Charset.forName(getCharsetName())));
     }
 
-    public PollingHelper registerQueryResponse(String query, String response, String charsetName) {
-        return registerQueryResponse(query.getBytes(Charset.forName(charsetName)), response.getBytes(Charset.forName(charsetName)));
-    }
-
+    /**
+     * 注册自动应答
+     * @param query 接收
+     * @param response 自动回复
+     * @return
+     */
     public PollingHelper registerQueryResponse(byte[] query, byte[] response) {
+        if (query == null || response == null) {
+            return this;
+        }
         getQueryResponseMap().put(new BytesWrapper(query), new BytesWrapper(response));
         return this;
     }
 
     public PollingHelper registerQueryResponse(HashMap<BytesWrapper, BytesWrapper> queryResponseMap) {
+        if (queryResponseMap == null) {
+            return this;
+        }
         getQueryResponseMap().putAll(queryResponseMap);
         return this;
     }
 
     public PollingHelper removeQueryResponse(String query) {
-        return removeQueryResponse(query, getDefaultCharsetName());
-    }
-
-    public PollingHelper removeQueryResponse(String query, String charsetName) {
-        return removeQueryResponse(query.getBytes(Charset.forName(charsetName)));
+        if (query == null) {
+            return this;
+        }
+        return removeQueryResponse(query.getBytes(Charset.forName(getCharsetName())));
     }
 
     public PollingHelper removeQueryResponse(byte[] query) {
+        if (query == null) {
+            return this;
+        }
         getQueryResponseMap().remove(query);
         return this;
     }
@@ -62,22 +73,31 @@ public class PollingHelper {
     }
 
     public PollingHelper append(PollingHelper pollingHelper) {
+        if (pollingHelper == null) {
+            return this;
+        }
         registerQueryResponse(pollingHelper.getQueryResponseMap());
         return this;
     }
 
-    public boolean containsQuery(byte[] bytes) {
+    public boolean containsQuery(byte[] data) {
+        if (data == null) {
+            return false;
+        }
         for (Map.Entry<BytesWrapper, BytesWrapper> entry : getQueryResponseMap().entrySet()) {
-            if (entry.getKey().equalsBytes(bytes)) {
+            if (entry.getKey().equalsBytes(data)) {
                 return true;
             }
         }
         return false;
     }
 
-    public boolean containsResponse(byte[] bytes) {
+    public boolean containsResponse(byte[] data) {
+        if (data == null) {
+            return false;
+        }
         for (Map.Entry<BytesWrapper, BytesWrapper> entry : getQueryResponseMap().entrySet()) {
-            if (entry.getValue().equalsBytes(bytes)) {
+            if (entry.getValue().equalsBytes(data)) {
                 return true;
             }
         }
@@ -85,17 +105,27 @@ public class PollingHelper {
     }
 
     public byte[] getResponse(byte[] query) {
+        if (query == null) {
+            return null;
+        }
         return getResponse(new BytesWrapper(query)).getBytes();
     }
 
     public BytesWrapper getResponse(BytesWrapper bytesWrapper) {
+        if (bytesWrapper == null) {
+            return null;
+        }
         return getQueryResponseMap().get(bytesWrapper);
     }
 
     /* Properties */
-    private final String defaultCharsetName;
-    public String getDefaultCharsetName() {
-        return this.defaultCharsetName;
+    private String charsetName;
+    public PollingHelper setCharsetName(String charsetName) {
+        this.charsetName = charsetName;
+        return this;
+    }
+    public String getCharsetName() {
+        return this.charsetName;
     }
 
     private HashMap<BytesWrapper, BytesWrapper> queryResponseMap;
