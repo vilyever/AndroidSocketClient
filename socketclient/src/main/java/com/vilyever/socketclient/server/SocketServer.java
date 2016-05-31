@@ -229,35 +229,6 @@ public class SocketServer implements SocketClientDelegate {
         return this.socketServerDelegates;
     }
 
-    public interface SocketServerDelegate {
-        void onServerBeginListen(SocketServer socketServer, int port);
-        void onServerStopListen(SocketServer socketServer, int port);
-        void onClientConnected(SocketServer socketServer, SocketServerClient socketServerClient);
-        void onClientDisconnected(SocketServer socketServer, SocketServerClient socketServerClient);
-
-        class SimpleSocketServerDelegate implements SocketServerDelegate {
-            @Override
-            public void onServerBeginListen(SocketServer socketServer, int port) {
-
-            }
-
-            @Override
-            public void onServerStopListen(SocketServer socketServer, int port) {
-
-            }
-
-            @Override
-            public void onClientConnected(SocketServer socketServer, SocketServerClient socketServerClient) {
-
-            }
-
-            @Override
-            public void onClientDisconnected(SocketServer socketServer, SocketServerClient socketServerClient) {
-
-            }
-        }
-    }
-
     private UIHandler uiHandler;
     protected UIHandler getUiHandler() {
         if (this.uiHandler == null) {

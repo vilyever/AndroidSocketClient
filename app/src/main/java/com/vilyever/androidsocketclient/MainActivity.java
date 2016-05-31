@@ -16,6 +16,7 @@ import com.vilyever.socketclient.helper.SocketPacket;
 import com.vilyever.socketclient.helper.SocketResponsePacket;
 import com.vilyever.socketclient.server.SocketServer;
 import com.vilyever.socketclient.server.SocketServerClient;
+import com.vilyever.socketclient.server.SocketServerDelegate;
 import com.vilyever.socketclient.util.IPUtil;
 
 import java.io.UnsupportedEncodingException;
@@ -39,7 +40,7 @@ public class MainActivity extends AppCompatActivity {
             this.socketServer.getSocketPacketHelper().setReceiveHeaderData(new byte[]{0x02});
             this.socketServer.getSocketPacketHelper().setReceiveTrailerString("\r\n");
 
-            this.socketServer.registerSocketServerDelegate(new SocketServer.SocketServerDelegate() {
+            this.socketServer.registerSocketServerDelegate(new SocketServerDelegate() {
                 @Override
                 public void onServerBeginListen(SocketServer socketServer, int port) {
                     Logger.log("SocketServer: begin listen " + port);
