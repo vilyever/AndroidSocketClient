@@ -17,7 +17,7 @@ Step 2. Add the dependency in the form
 
 ```gradle
 dependencies {
-  compile 'com.github.vilyever:AndroidSocketClient:1.5.1'
+  compile 'com.github.vilyever:AndroidSocketClient:2.0.0'
 }
 ```
 
