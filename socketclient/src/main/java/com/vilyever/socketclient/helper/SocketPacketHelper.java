@@ -1,6 +1,6 @@
 package com.vilyever.socketclient.helper;
 
-import java.nio.charset.Charset;
+import com.vilyever.socketclient.util.CharsetUtil;
 
 /**
  * SocketPacketHelper
@@ -9,7 +9,8 @@ import java.nio.charset.Charset;
  */
 public class SocketPacketHelper {
     final SocketPacketHelper self = this;
-    
+
+    public static final int SegmentLengthMax = -1;
     
     /* Constructors */
     public SocketPacketHelper(String charsetName) {
@@ -17,26 +18,57 @@ public class SocketPacketHelper {
     }
     
     /* Public Methods */
-    public SocketPacketHelper setSendTailString(String message) {
+    public SocketPacketHelper setSendHeaderString(String message) {
         if (message == null) {
-            setSendTailData(null);
+            setSendHeaderData(null);
         }
         else {
-            setSendTailData(message.getBytes(Charset.forName(getCharsetName())));
+            setSendHeaderData(CharsetUtil.stringToData(message, getCharsetName()));
         }
         return this;
     }
 
-    public SocketPacketHelper setReceiveTailString(String message) {
+    public SocketPacketHelper setSendTrailerString(String message) {
         if (message == null) {
-            setReceiveTailData(null);
+            setSendTrailerData(null);
         }
         else {
-            setReceiveTailData(message.getBytes(Charset.forName(getCharsetName())));
+            setSendTrailerData(CharsetUtil.stringToData(message, getCharsetName()));
         }
         return this;
     }
-    
+
+    public SocketPacketHelper setReceiveHeaderString(String message) {
+        if (message == null) {
+            setReceiveHeaderData(null);
+        }
+        else {
+            setReceiveHeaderData(CharsetUtil.stringToData(message, getCharsetName()));
+        }
+        return this;
+    }
+
+    public SocketPacketHelper setReceiveTrailerString(String message) {
+        if (message == null) {
+            setReceiveTrailerData(null);
+        }
+        else {
+            setReceiveTrailerData(CharsetUtil.stringToData(message, getCharsetName()));
+        }
+        return this;
+    }
+
+    public SocketPacketHelper copy() {
+        SocketPacketHelper helper = new SocketPacketHelper(getCharsetName());
+        helper.setSendHeaderData(getSendHeaderData());
+        helper.setSendTrailerData(getSendTrailerData());
+        helper.setReceiveHeaderData(getReceiveHeaderData());
+        helper.setReceiveTrailerData(getReceiveTrailerData());
+        helper.setSegmentLength(getSegmentLength());
+
+        return helper;
+    }
+
     /* Properties */
     private String charsetName;
     public SocketPacketHelper setCharsetName(String charsetName) {
@@ -46,33 +78,88 @@ public class SocketPacketHelper {
     public String getCharsetName() {
         return this.charsetName;
     }
+
+    /**
+     * 发送消息时自动添加的头部
+     * 用于解决分包
+     */
+    private byte[] sendHeaderData;
+    public SocketPacketHelper setSendHeaderData(byte[] sendHeaderData) {
+        this.sendHeaderData = sendHeaderData;
+        return this;
+    }
+    public byte[] getSendHeaderData() {
+        if (getSendTrailerData() == null) {
+            return null;
+        }
+        return this.sendHeaderData;
+    }
+
     /**
      * 发送消息时自动添加的尾部信息
      * 可设为换行符，远程端即可readLine
      */
-    private byte[] sendTailData;
-    public SocketPacketHelper setSendTailData(byte[] sendTailData) {
-        this.sendTailData = sendTailData;
+    private byte[] sendTrailerData;
+    public SocketPacketHelper setSendTrailerData(byte[] sendTrailerData) {
+        this.sendTrailerData = sendTrailerData;
         return this; 
     }
-    public byte[] getSendTailData() {
-        return this.sendTailData;
+    public byte[] getSendTrailerData() {
+        return this.sendTrailerData;
+    }
+
+    /**
+     * 接收消息时每一条消息的头部信息
+     * 若不为null，每一条接收消息都必须带有此头部信息，否则将无法读取
+     * 回调消息时将会自动去除此信息
+     */
+    private byte[] receiveHeaderData;
+    public SocketPacketHelper setReceiveHeaderData(byte[] receiveHeaderData) {
+        this.receiveHeaderData = receiveHeaderData;
+        return this;
+    }
+    public byte[] getReceiveHeaderData() {
+        if (getReceiveTrailerData() == null) {
+            return null;
+        }
+        return this.receiveHeaderData;
     }
 
     /**
      * 接收消息时每一条消息的尾部信息
      * 若不为null，每一条接收消息都必须带有此尾部信息，否则将与下一次输入流合并
-     * 回调消息时将会自动去除尾部信息
+     * 回调消息时将会自动去除此信息
      */
-    private byte[] receiveTailData;
-    public SocketPacketHelper setReceiveTailData(byte[] receiveTailData) {
-        this.receiveTailData = receiveTailData;
+    private byte[] receiveTrailerData;
+    public SocketPacketHelper setReceiveTrailerData(byte[] receiveTrailerData) {
+        this.receiveTrailerData = receiveTrailerData;
         return this;
     }
-    public byte[] getReceiveTailData() {
-        return this.receiveTailData;
+    public byte[] getReceiveTrailerData() {
+        return this.receiveTrailerData;
     }
-    
+
+    /**
+     * 发送消息时分段发送的每段大小
+     * 分段发送可以回调进度
+     * 此数值表示每次发送byte的长度
+     * -1表示不分段
+     */
+    private int segmentLength = SegmentLengthMax;
+    public SocketPacketHelper setSegmentLength(int segmentLength) {
+        this.segmentLength = segmentLength;
+        return this;
+    }
+    public int getSegmentLength() {
+        if (this.segmentLength <= 0) {
+            this.segmentLength = SegmentLengthMax;
+        }
+        if (getSendTrailerData() == null) {
+            return SegmentLengthMax;
+        }
+        return this.segmentLength;
+    }
+
     /* Overrides */
     
     

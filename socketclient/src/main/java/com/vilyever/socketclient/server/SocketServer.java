@@ -9,10 +9,11 @@ import android.support.annotation.WorkerThread;
 
 import com.vilyever.socketclient.SocketClient;
 import com.vilyever.socketclient.helper.HeartBeatHelper;
-import com.vilyever.socketclient.helper.PollingHelper;
+import com.vilyever.socketclient.helper.SocketClientDelegate;
+import com.vilyever.socketclient.helper.SocketConfigure;
 import com.vilyever.socketclient.helper.SocketPacketHelper;
 import com.vilyever.socketclient.helper.SocketResponsePacket;
-import com.vilyever.socketclient.util.CharsetNames;
+import com.vilyever.socketclient.util.CharsetUtil;
 import com.vilyever.socketclient.util.ExceptionThrower;
 import com.vilyever.socketclient.util.StringValidation;
 
@@ -28,7 +29,7 @@ import java.util.ArrayList;
  * Created by vilyever on 2016/3/18.
  * Feature:
  */
-public class SocketServer implements SocketClient.SocketDelegate {
+public class SocketServer implements SocketClientDelegate {
     final SocketServer self = this;
 
     public static final int NoPort = -1;
@@ -49,6 +50,8 @@ public class SocketServer implements SocketClient.SocketDelegate {
         if (getRunningServerSocket() == null) {
             return false;
         }
+
+        getSocketConfigure().setCharsetName(getCharsetName()).setHeartBeatHelper(getHeartBeatHelper()).setSocketPacketHelper(getSocketPacketHelper());
 
         onSocketServerBeginListen();
         getListenThread().start();
@@ -165,7 +168,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
     }
     public String getCharsetName() {
         if (this.charsetName == null) {
-            this.charsetName = CharsetNames.UTF_8;
+            this.charsetName = CharsetUtil.UTF_8;
         }
         return this.charsetName;
     }
@@ -178,14 +181,6 @@ public class SocketServer implements SocketClient.SocketDelegate {
     private SocketPacketHelper socketPacketHelper;
     public SocketServer setSocketPacketHelper(SocketPacketHelper socketPacketHelper) {
         this.socketPacketHelper = socketPacketHelper;
-
-        ArrayList<SocketServerClient> copyList =
-                (ArrayList<SocketServerClient>) getRunningSocketServerClients().clone();
-        int count = copyList.size();
-        for (int i = 0; i < count; ++i) {
-            copyList.get(i).setSocketPacketHelper(this.socketPacketHelper);
-        }
-
         return this;
     }
     public SocketPacketHelper getSocketPacketHelper() {
@@ -201,13 +196,6 @@ public class SocketServer implements SocketClient.SocketDelegate {
     private HeartBeatHelper heartBeatHelper;
     public SocketServer setHeartBeatHelper(HeartBeatHelper heartBeatHelper) {
         this.heartBeatHelper = heartBeatHelper;
-
-        ArrayList<SocketServerClient> copyList =
-                (ArrayList<SocketServerClient>) getRunningSocketServerClients().clone();
-        int count = copyList.size();
-        for (int i = 0; i < count; ++i) {
-            copyList.get(i).setHeartBeatHelper(this.heartBeatHelper);
-        }
         return this;
     }
     public HeartBeatHelper getHeartBeatHelper() {
@@ -217,26 +205,12 @@ public class SocketServer implements SocketClient.SocketDelegate {
         return this.heartBeatHelper;
     }
 
-    /**
-     * 统一配置自动应答
-     */
-    private PollingHelper pollingHelper;
-    public SocketServer setPollingHelper(PollingHelper pollingHelper) {
-        this.pollingHelper = pollingHelper;
-
-        ArrayList<SocketServerClient> copyList =
-                (ArrayList<SocketServerClient>) getRunningSocketServerClients().clone();
-        int count = copyList.size();
-        for (int i = 0; i < count; ++i) {
-            copyList.get(i).setPollingHelper(this.pollingHelper);
+    private SocketConfigure socketConfigure;
+    protected SocketConfigure getSocketConfigure() {
+        if (this.socketConfigure == null) {
+            this.socketConfigure = new SocketConfigure();
         }
-        return this;
-    }
-    public PollingHelper getPollingHelper() {
-        if (this.pollingHelper == null) {
-            this.pollingHelper = new PollingHelper(getCharsetName());
-        }
-        return this.pollingHelper;
+        return this.socketConfigure;
     }
 
     private ArrayList<SocketServerClient> runningSocketServerClients;
@@ -331,7 +305,6 @@ public class SocketServer implements SocketClient.SocketDelegate {
      
      
     /* Delegates */
-    /** {@link SocketClient.SocketDelegate} */
     @Override
     public void onConnected(SocketClient client) {
 
@@ -351,7 +324,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
     /* Protected Methods */
     @WorkerThread
     protected SocketServerClient internalGetSocketServerClient(Socket socket) {
-        return new SocketServerClient(socket);
+        return new SocketServerClient(socket, getSocketConfigure());
     }
 
     @CallSuper
@@ -386,12 +359,7 @@ public class SocketServer implements SocketClient.SocketDelegate {
     protected void internalOnSocketServerClientConnected(SocketServerClient socketServerClient) {
         getRunningSocketServerClients().add(socketServerClient);
 
-        socketServerClient.registerSocketDelegate(this);
-
-        socketServerClient.setCharsetName(getCharsetName());
-        socketServerClient.setSocketPacketHelper(getSocketPacketHelper());
-        socketServerClient.setHeartBeatHelper(getHeartBeatHelper());
-        socketServerClient.getPollingHelper().append(getPollingHelper());
+        socketServerClient.registerSocketClientDelegate(this);
 
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();

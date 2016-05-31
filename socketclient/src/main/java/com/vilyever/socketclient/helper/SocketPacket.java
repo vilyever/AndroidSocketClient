@@ -66,4 +66,21 @@ public class SocketPacket {
         return this.data;
     }
 
+    private boolean canceled;
+    public SocketPacket setCanceled(boolean canceled) {
+        this.canceled = canceled;
+        return this;
+    }
+    public boolean isCanceled() {
+        return this.canceled;
+    }
+
+    private float sendingProgress;
+    public SocketPacket setSendingProgress(float sendingProgress) {
+        this.sendingProgress = sendingProgress;
+        return this;
+    }
+    public float getSendingProgress() {
+        return this.sendingProgress;
+    }
 }

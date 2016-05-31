@@ -46,7 +46,7 @@ public class SocketInputReader extends Reader {
         throw new IOException("read() is not support for SocketInputReader, try readBytes().");
     }
 
-    public byte[] readBytes(byte[] tail) throws IOException {
+    public byte[] readBytes(byte[] header, byte[] trailer) throws IOException {
         synchronized (lock) {
             if (!internalIsOpen()) {
                 throw new IOException("InputStreamReader is closed");
@@ -57,25 +57,69 @@ public class SocketInputReader extends Reader {
                 int c;
                 boolean readOver = false;
 
-                while (-1 != (c = this.inputStream.read())) {
-                    list.add((byte) c);
+                int headerCount = header == null ? 0 : header.length;
+                int trailerCount = trailer == null ? 0 : trailer.length;
+                boolean isHeaderMatched = false;
+                int matchHeaderIndex = 0;
+                int matchTrailerIndex = 0;
 
-                    if (tail != null) {
-                        if (list.size() > tail.length) {
-                            byte[] inputTail = new byte[tail.length];
-                            for (int i = 0; i < inputTail.length; i++) {
-                                inputTail[i] = list.get(list.size() - inputTail.length + i);
-                            }
-                            if (Arrays.equals(tail, inputTail)) {
-                                for (int i = 0; i < inputTail.length; i++) {
-                                    list.remove(list.size() - 1);
+                byte[] tryRemovedTrailer = new byte[trailerCount];
+
+                while (-1 != (c = this.inputStream.read())) {
+                    if (header != null) {
+                        if (matchHeaderIndex < headerCount) {
+                            if (header[matchHeaderIndex] == c) {
+                                matchHeaderIndex++;
+
+                                if (matchHeaderIndex == headerCount) {
+                                    if (isHeaderMatched && Arrays.equals(header, trailer)) {
+                                        readOver = true;
+                                        break;
+                                    }
+                                    isHeaderMatched = true;
+                                    list.clear();
+                                    matchHeaderIndex = 0;
+                                    continue;
                                 }
-                                readOver = true;
-                                break;
+                                else {
+                                    if (!isHeaderMatched) {
+                                        continue;
+                                    }
+                                }
+                            }
+                            else {
+                                matchHeaderIndex = 0;
+
+                                if (!isHeaderMatched) {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+
+                    if (trailer != null) {
+                        if (matchTrailerIndex < trailerCount) {
+                            if (trailer[matchTrailerIndex] == c) {
+                                tryRemovedTrailer[matchTrailerIndex] = (byte) c;
+                                matchTrailerIndex++;
+
+                                if (matchTrailerIndex == trailerCount) {
+                                    readOver = true;
+                                    break;
+                                }
+                            }
+                            else {
+                                for (int i = 0; i < matchTrailerIndex; i++) {
+                                    list.add(tryRemovedTrailer[i]);
+                                }
+                                matchTrailerIndex = 0;
+
+                                list.add((byte) c);
                             }
                         }
                     }
                     else {
+                        list.add((byte) c);
                         if (this.inputStream.available() == 0) {
                             readOver = true;
                             break;

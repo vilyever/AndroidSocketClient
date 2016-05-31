@@ -1,6 +1,6 @@
 package com.vilyever.socketclient.helper;
 
-import java.nio.charset.Charset;
+import com.vilyever.socketclient.util.CharsetUtil;
 
 /**
  * HeartBeatHelper
@@ -26,7 +26,7 @@ public class HeartBeatHelper {
             setSendData(null);
         }
         else {
-            setSendData(message.getBytes(Charset.forName(getCharsetName())));
+            setSendData(CharsetUtil.stringToData(message, getCharsetName()));
         }
         return this;
     }
@@ -36,7 +36,7 @@ public class HeartBeatHelper {
             setReceiveData(null);
         }
         else {
-            setReceiveData(message.getBytes(Charset.forName(getCharsetName())));
+            setReceiveData(CharsetUtil.stringToData(message, getCharsetName()));
         }
         return this;
     }
@@ -69,6 +69,16 @@ public class HeartBeatHelper {
      */
     public boolean shouldAutoDisconnectWhenRemoteNoReplyAliveTimeout() {
         return getRemoteNoReplyAliveTimeout() != NoneRemoteNoReplyAliveTimeout;
+    }
+
+    public HeartBeatHelper copy() {
+        HeartBeatHelper helper = new HeartBeatHelper(getCharsetName());
+        helper.setSendData(getSendData());
+        helper.setReceiveData(getReceiveData());
+        helper.setHeartBeatInterval(getHeartBeatInterval());
+        helper.setRemoteNoReplyAliveTimeout(getRemoteNoReplyAliveTimeout());
+
+        return helper;
     }
 
     /* Properties */
