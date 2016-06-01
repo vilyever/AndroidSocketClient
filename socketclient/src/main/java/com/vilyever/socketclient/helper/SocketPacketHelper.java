@@ -89,9 +89,9 @@ public class SocketPacketHelper {
         return this;
     }
     public byte[] getSendHeaderData() {
-        if (getSendTrailerData() == null) {
-            return null;
-        }
+//        if (getSendTrailerData() == null) {
+//            return null;
+//        }
         return this.sendHeaderData;
     }
 
@@ -119,9 +119,9 @@ public class SocketPacketHelper {
         return this;
     }
     public byte[] getReceiveHeaderData() {
-        if (getReceiveTrailerData() == null) {
-            return null;
-        }
+//        if (getReceiveTrailerData() == null) {
+//            return null;
+//        }
         return this.receiveHeaderData;
     }
 
@@ -154,9 +154,9 @@ public class SocketPacketHelper {
         if (this.segmentLength <= 0) {
             this.segmentLength = SegmentLengthMax;
         }
-        if (getSendTrailerData() == null) {
-            return SegmentLengthMax;
-        }
+//        if (getSendTrailerData() == null) {
+//            return SegmentLengthMax;
+//        }
         return this.segmentLength;
     }
 

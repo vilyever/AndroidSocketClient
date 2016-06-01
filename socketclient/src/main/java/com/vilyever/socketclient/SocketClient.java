@@ -28,7 +28,6 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -803,9 +802,7 @@ public class SocketClient {
 
                                     int end = offset + segmentLength;
                                     end = Math.min(data.length, end);
-                                    byte[] segmentData = Arrays.copyOfRange(data, offset, end);
-
-                                    self.getRunningSocket().getOutputStream().write(segmentData);
+                                    self.getRunningSocket().getOutputStream().write(data, offset, end - offset);
                                     self.getRunningSocket().getOutputStream().flush();
 
                                     float progress = end / (float) data.length;
