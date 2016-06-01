@@ -4,6 +4,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
+import android.widget.ImageView;
 
 import com.vilyever.jsonmodel.JsonModel;
 import com.vilyever.logger.Logger;
@@ -25,6 +26,9 @@ import java.util.ArrayList;
 public class MainActivity extends AppCompatActivity {
     final MainActivity self = this;
 
+    private ImageView imageView;
+    protected ImageView getImageView() { if (this.imageView == null) { this.imageView = (ImageView) findViewById(R.id.imageView); } return this.imageView; }
+
     private SocketServer socketServer;
     protected SocketServer getSocketServer() {
         if (this.socketServer == null) {
@@ -35,10 +39,14 @@ public class MainActivity extends AppCompatActivity {
             this.socketServer.getHeartBeatHelper().setSendString("$HB$");
             this.socketServer.getHeartBeatHelper().setReceiveString("$HB$");
 
-            this.socketServer.getSocketPacketHelper().setSendHeaderData(new byte[]{0x02});
-            this.socketServer.getSocketPacketHelper().setSendTrailerString("\r\n");
-            this.socketServer.getSocketPacketHelper().setReceiveHeaderData(new byte[]{0x02});
-            this.socketServer.getSocketPacketHelper().setReceiveTrailerString("\r\n");
+//            this.socketServer.getSocketPacketHelper().setSendHeaderData(new byte[]{0x03,0x02});
+//            this.socketServer.getSocketPacketHelper().setSendTrailerData(new byte[]{0x01,0x03});
+//            this.socketServer.getSocketPacketHelper().setReceiveHeaderData(new byte[]{0x03,0x02});
+//            this.socketServer.getSocketPacketHelper().setReceiveTrailerData(new byte[]{0x01,0x03});
+            this.socketServer.getSocketPacketHelper().setSendHeaderString("_abcd_1f9jsld;af");
+            this.socketServer.getSocketPacketHelper().setSendTrailerString("jrjgofnosd9[;[];3289-sjf");
+            this.socketServer.getSocketPacketHelper().setReceiveHeaderString("_abcd_1f9jsld;af");
+            this.socketServer.getSocketPacketHelper().setReceiveTrailerString("jrjgofnosd9[;[];3289-sjf");
 
             this.socketServer.registerSocketServerDelegate(new SocketServerDelegate() {
                 @Override
@@ -78,10 +86,15 @@ public class MainActivity extends AppCompatActivity {
             this.localSocketClient.getHeartBeatHelper().setSendString("$HB$");
             this.localSocketClient.getHeartBeatHelper().setReceiveString("$HB$");
 
-            this.localSocketClient.getSocketPacketHelper().setSendHeaderData(new byte[]{0x02});
-            this.localSocketClient.getSocketPacketHelper().setSendTrailerString("\r\n");
-            this.localSocketClient.getSocketPacketHelper().setReceiveHeaderData(new byte[]{0x02});
-            this.localSocketClient.getSocketPacketHelper().setReceiveTrailerString("\r\n");
+//            this.localSocketClient.getSocketPacketHelper().setSendHeaderData(new byte[]{0x03,0x02});
+//            this.localSocketClient.getSocketPacketHelper().setSendTrailerData(new byte[]{0x01,0x03});
+//            this.localSocketClient.getSocketPacketHelper().setReceiveHeaderData(new byte[]{0x03,0x02});
+//            this.localSocketClient.getSocketPacketHelper().setReceiveTrailerData(new byte[]{0x01,0x03});
+
+            this.localSocketClient.getSocketPacketHelper().setSendHeaderString("_abcd_1f9jsld;af");
+            this.localSocketClient.getSocketPacketHelper().setSendTrailerString("jrjgofnosd9[;[];3289-sjf");
+            this.localSocketClient.getSocketPacketHelper().setReceiveHeaderString("_abcd_1f9jsld;af");
+            this.localSocketClient.getSocketPacketHelper().setReceiveTrailerString("jrjgofnosd9[;[];3289-sjf");
 
             this.localSocketClient.getSocketPacketHelper().setSegmentLength(4 * 1024);
 
@@ -108,22 +121,22 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void onSendPacketBegin(SocketClient client, SocketPacket packet) {
-                    Logger.log("Local onSendPacketBegin " + packet.getID());
+//                    Logger.log("Local onSendPacketBegin " + packet.getID());
                 }
 
                 @Override
                 public void onSendPacketCancel(SocketClient client, SocketPacket packet) {
-                    Logger.log("Local onSendPacketCancel " + packet.getID());
+//                    Logger.log("Local onSendPacketCancel " + packet.getID());
                 }
 
                 @Override
                 public void onSendPacketEnd(SocketClient client, SocketPacket packet) {
-                    Logger.log("Local onSendPacketEnd " + packet.getID());
+//                    Logger.log("Local onSendPacketEnd " + packet.getID());
                 }
 
                 @Override
                 public void onSendPacketProgress(SocketClient client, SocketPacket packet, float progress) {
-                    Logger.log("Local onSendPacketProgress " + packet.getID() + "  progress : " + progress);
+//                    Logger.log("Local onSendPacketProgress " + packet.getID() + "  progress : " + progress);
                 }
             });
             this.localSocketClient.registerSocketClientReceiveDelegate(new SocketClientReceiveDelegate() {
@@ -134,7 +147,7 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void onHeartBeat(SocketClient socketClient) {
-                    Logger.log("Local onHeartBeat ");
+//                    Logger.log("Local onHeartBeat ");
                 }
             });
         }
@@ -151,12 +164,12 @@ public class MainActivity extends AppCompatActivity {
         this.serverListeningSocketServerClient.registerSocketClientDelegate(new SocketClientDelegate() {
             @Override
             public void onConnected(SocketClient client) {
-                Logger.log("Server onConnected");
+//                Logger.log("Server onConnected");
             }
 
             @Override
             public void onDisconnected(SocketClient client) {
-                Logger.log("Server onDisconnected");
+//                Logger.log("Server onDisconnected");
             }
 
             @Override
@@ -167,22 +180,23 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onSendPacketBegin(SocketClient client, SocketPacket packet) {
-                Logger.log("Server onSendPacketBegin " + packet.getID());
+//                Logger.log("Server onSendPacketBegin " + packet.getID());
             }
 
             @Override
             public void onSendPacketCancel(SocketClient client, SocketPacket packet) {
-                Logger.log("Server onSendPacketCancel " + packet.getID());
+//                Logger.log("Server onSendPacketCancel " + packet.getID());
             }
 
             @Override
             public void onSendPacketEnd(SocketClient client, SocketPacket packet) {
-                Logger.log("Server onSendPacketEnd " + packet.getID());
+//                Logger.log("Server onSendPacketEnd " + packet.getID());
+
             }
 
             @Override
             public void onSendPacketProgress(SocketClient client, SocketPacket packet, float progress) {
-                Logger.log("Server onSendPacketProgress " + packet.getID() + "  progress : " + progress);
+//                Logger.log("Server onSendPacketProgress " + packet.getID() + "  progress : " + progress);
             }
         });
         this.serverListeningSocketServerClient.registerSocketClientReceiveDelegate(new SocketClientReceiveDelegate() {
@@ -193,6 +207,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 else {
                     Logger.log("Server onResponse 【" + responsePacket.getMessage().substring(0, 100) + "】");
+                    Logger.log("Server onResponse length 【" + responsePacket.getData().length + "】");
                 }
             }
 
@@ -236,18 +251,19 @@ public class MainActivity extends AppCompatActivity {
                         protected Void doInBackground(Void... params) {
                             self.getLocalSocketClient().sendString("ABC");
 
-                        TestModel testModel = new TestModel();
-                        testModel.subModels = new ArrayList<TestSubModel>();
-                        for (int i = 0; i < 100000; i++) {
-                            TestSubModel subModel = new TestSubModel();
-                            subModel.title = "title " + i;
-                            testModel.subModels.add(subModel);
-                        }
+                            TestModel testModel = new TestModel();
+                            testModel.subModels = new ArrayList<TestSubModel>();
+                            for (int i = 0; i < 10000; i++) {
+                                TestSubModel subModel = new TestSubModel();
+                                subModel.title = "title " + i;
+                                testModel.subModels.add(subModel);
+                            }
 
-                        SocketPacket packet = self.getLocalSocketClient().sendString(testModel.toJson().toString());
-                        Logger.log("packet size " + packet.getMessage().getBytes().length);
+                            SocketPacket packet = self.getLocalSocketClient().sendString(testModel.toJson().toString());
+                            Logger.log("packet size " + packet.getMessage().getBytes().length);
 
                             self.getLocalSocketClient().sendString("一二三");
+
                             return null;
                         }
 

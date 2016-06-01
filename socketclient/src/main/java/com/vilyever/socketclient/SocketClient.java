@@ -760,6 +760,8 @@ public class SocketClient {
 
                     internalBeginSendPacket(packet);
 
+                    internalUpdateSendProgress(packet);
+
                     if (!internalCheckShouldContinueSend(packet)) {
                         continue;
                     }
@@ -769,7 +771,7 @@ public class SocketClient {
                         data = CharsetUtil.stringToData(packet.getMessage(), self.getSocketConfigure().getCharsetName());
                     }
 
-                    if (data != null) {
+                    if (data != null && data.length > 0) {
                         try {
                             // 发送包头
                             byte[] headerData = self.getSocketConfigure().getSocketPacketHelper().getSendHeaderData();
@@ -825,10 +827,10 @@ public class SocketClient {
                                 self.getRunningSocket().getOutputStream().write(tailData);
                                 self.getRunningSocket().getOutputStream().flush();
 
-                                packet.setSendingProgress(1.0f);
-                                internalUpdateSendProgress(packet);
                             }
 
+                            packet.setSendingProgress(1.0f);
+                            internalUpdateSendProgress(packet);
 
                             internalEndSendPacket(packet);
                         }
@@ -839,7 +841,7 @@ public class SocketClient {
                 }
             }
             catch (InterruptedException e) {
-                e.printStackTrace();
+//                e.printStackTrace();
             }
         }
 
