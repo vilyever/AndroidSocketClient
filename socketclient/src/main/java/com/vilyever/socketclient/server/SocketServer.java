@@ -3,18 +3,17 @@ package com.vilyever.socketclient.server;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.support.annotation.CallSuper;
 import android.support.annotation.NonNull;
 import android.support.annotation.WorkerThread;
 
 import com.vilyever.socketclient.SocketClient;
-import com.vilyever.socketclient.helper.HeartBeatHelper;
+import com.vilyever.socketclient.helper.SocketClientAddress;
 import com.vilyever.socketclient.helper.SocketClientDelegate;
 import com.vilyever.socketclient.helper.SocketConfigure;
+import com.vilyever.socketclient.helper.SocketHeartBeatHelper;
 import com.vilyever.socketclient.helper.SocketPacketHelper;
 import com.vilyever.socketclient.helper.SocketResponsePacket;
-import com.vilyever.socketclient.util.CharsetUtil;
-import com.vilyever.socketclient.util.ExceptionThrower;
+import com.vilyever.socketclient.util.IPUtil;
 import com.vilyever.socketclient.util.StringValidation;
 
 import java.io.IOException;
@@ -47,14 +46,16 @@ public class SocketServer implements SocketClientDelegate {
         }
 
         setPort(port);
+
+        getSocketConfigure().setCharsetName(getCharsetName()).setAddress(new SocketClientAddress(IPUtil.getLocalIPAddress(true), "" + port)).setHeartBeatHelper(getHeartBeatHelper()).setSocketPacketHelper(getSocketPacketHelper());
+
         if (getRunningServerSocket() == null) {
             return false;
         }
 
-        getSocketConfigure().setCharsetName(getCharsetName()).setHeartBeatHelper(getHeartBeatHelper()).setSocketPacketHelper(getSocketPacketHelper());
 
-        onSocketServerBeginListen();
-        getListenThread().start();
+        setListening(true);
+        __i__onSocketServerBeginListen();
 
         return true;
     }
@@ -90,6 +91,10 @@ public class SocketServer implements SocketClientDelegate {
         return getRunningServerSocket().getLocalSocketAddress().toString().substring(1);
     }
 
+    public SocketClientAddress getListeningAddress() {
+        return getSocketConfigure().getAddress();
+    }
+
     /**
      * 注册监听回调
      * @param delegate 回调接收者
@@ -112,13 +117,17 @@ public class SocketServer implements SocketClientDelegate {
 
     /* Properties */
     private ServerSocket runningServerSocket;
+    protected SocketServer setRunningServerSocket(ServerSocket runningServerSocket) {
+        this.runningServerSocket = runningServerSocket;
+        return this;
+    }
     protected ServerSocket getRunningServerSocket() {
         if (this.runningServerSocket == null) {
             try {
                 this.runningServerSocket = new ServerSocket(getPort());
             }
             catch (IOException e) {
-//                e.printStackTrace();
+                e.printStackTrace();
             }
         }
         return this.runningServerSocket;
@@ -129,8 +138,8 @@ public class SocketServer implements SocketClientDelegate {
         return this.port;
     }
     protected SocketServer setPort(int port) {
-        if (!StringValidation.validateRegex(String.format("%d", port), StringValidation.RegexPort)) {
-            ExceptionThrower.throwIllegalStateException("we need a correct remote port to listen");
+        if (!StringValidation.validateRegex("" + port, StringValidation.RegexPort)) {
+            throw new IllegalArgumentException("we need a correct remote port to listen");
         }
 
         if (isListening()) {
@@ -151,6 +160,10 @@ public class SocketServer implements SocketClientDelegate {
     }
 
     private ListenThread listenThread;
+    protected SocketServer setListenThread(ListenThread listenThread) {
+        this.listenThread = listenThread;
+        return this;
+    }
     protected ListenThread getListenThread() {
         if (this.listenThread == null) {
             this.listenThread = new ListenThread();
@@ -167,17 +180,9 @@ public class SocketServer implements SocketClientDelegate {
         return this;
     }
     public String getCharsetName() {
-        if (this.charsetName == null) {
-            this.charsetName = CharsetUtil.UTF_8;
-        }
         return this.charsetName;
     }
 
-    /**
-    * 发送接收时对信息的处理
-    * 发送添加尾部信息
-    * 接收使用尾部信息截断消息
-    */
     private SocketPacketHelper socketPacketHelper;
     public SocketServer setSocketPacketHelper(SocketPacketHelper socketPacketHelper) {
         this.socketPacketHelper = socketPacketHelper;
@@ -185,22 +190,19 @@ public class SocketServer implements SocketClientDelegate {
     }
     public SocketPacketHelper getSocketPacketHelper() {
         if (this.socketPacketHelper == null) {
-            this.socketPacketHelper = new SocketPacketHelper(getCharsetName());
+            this.socketPacketHelper = new SocketPacketHelper();
         }
         return this.socketPacketHelper;
     }
 
-    /**
-     * 心跳包信息
-     */
-    private HeartBeatHelper heartBeatHelper;
-    public SocketServer setHeartBeatHelper(HeartBeatHelper heartBeatHelper) {
+    private SocketHeartBeatHelper heartBeatHelper;
+    public SocketServer setHeartBeatHelper(SocketHeartBeatHelper heartBeatHelper) {
         this.heartBeatHelper = heartBeatHelper;
         return this;
     }
-    public HeartBeatHelper getHeartBeatHelper() {
+    public SocketHeartBeatHelper getHeartBeatHelper() {
         if (this.heartBeatHelper == null) {
-            this.heartBeatHelper = new HeartBeatHelper(getCharsetName());
+            this.heartBeatHelper = new SocketHeartBeatHelper();
         }
         return this.heartBeatHelper;
     }
@@ -236,42 +238,21 @@ public class SocketServer implements SocketClientDelegate {
         }
         return this.uiHandler;
     }
-    protected static class UIHandler extends Handler {
+    private static class UIHandler extends Handler {
         private WeakReference<SocketServer> referenceSocketServer;
 
-        public UIHandler(@NonNull SocketServer referenceSocketClient) {
+        public UIHandler(@NonNull SocketServer referenceSocketServer) {
             super(Looper.getMainLooper());
 
-            this.referenceSocketServer = new WeakReference<SocketServer>(referenceSocketClient);
+            this.referenceSocketServer = new WeakReference<SocketServer>(referenceSocketServer);
         }
 
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
-
-            switch (MessageType.typeFromWhat(msg.what)) {
-                case StopListen:
-                    this.referenceSocketServer.get().internalOnSocketServerStopListen();
-                    break;
-                case ClientConnected:
-                    this.referenceSocketServer.get().internalOnSocketServerClientConnected((SocketServerClient) msg.obj);
-                    break;
-            }
-        }
-
-        public enum MessageType {
-            StopListen, ClientConnected;
-
-            public static MessageType typeFromWhat(int what) {
-                return MessageType.values()[what];
-            }
-
-            public int what() {
-                return this.ordinal();
-            }
         }
     }
-    
+
     /* Overrides */
      
      
@@ -283,7 +264,8 @@ public class SocketServer implements SocketClientDelegate {
 
     @Override
     public void onDisconnected(SocketClient client) {
-        internalOnSocketServerClientDisconnected((SocketServerClient) client);
+        getRunningSocketServerClients().remove(client);
+        __i__onSocketServerClientDisconnected((SocketServerClient) client);
     }
 
     @Override
@@ -298,9 +280,39 @@ public class SocketServer implements SocketClientDelegate {
         return new SocketServerClient(socket, getSocketConfigure());
     }
 
-    @CallSuper
-    protected void onSocketServerBeginListen() {
-        setListening(true);
+    /* Private Methods */
+    private boolean __i__checkServerSocketAvailable() {
+        return getRunningServerSocket() != null && !getRunningServerSocket().isClosed();
+    }
+
+    private void __i__disconnectAllClients() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__disconnectAllClients();
+                }
+            });
+            return;
+        }
+
+        while (getRunningSocketServerClients().size() > 0) {
+            SocketServerClient client = getRunningSocketServerClients().get(0);
+            getRunningSocketServerClients().remove(client);
+            client.disconnect();
+        }
+    }
+
+    private void __i__onSocketServerBeginListen() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onSocketServerBeginListen();
+                }
+            });
+            return;
+        }
 
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
@@ -308,15 +320,20 @@ public class SocketServer implements SocketClientDelegate {
         for (int i = 0; i < count; ++i) {
             copyList.get(i).onServerBeginListen(this, getPort());
         }
+
+        getListenThread().start();
     }
 
-    @CallSuper
-    protected void internalOnSocketServerStopListen() {
-        setListening(false);
-        this.listenThread = null;
-        this.runningServerSocket = null;
-
-        internalDisconnectAllClients();
+    private void __i__onSocketServerStopListen() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onSocketServerStopListen();
+                }
+            });
+            return;
+        }
 
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
@@ -326,11 +343,16 @@ public class SocketServer implements SocketClientDelegate {
         }
     }
 
-    @CallSuper
-    protected void internalOnSocketServerClientConnected(SocketServerClient socketServerClient) {
-        getRunningSocketServerClients().add(socketServerClient);
-
-        socketServerClient.registerSocketClientDelegate(this);
+    private void __i__onSocketServerClientConnected(final SocketServerClient socketServerClient) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onSocketServerClientConnected(socketServerClient);
+                }
+            });
+            return;
+        }
 
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
@@ -340,28 +362,22 @@ public class SocketServer implements SocketClientDelegate {
         }
     }
 
-    @CallSuper
-    protected void internalOnSocketServerClientDisconnected(SocketServerClient socketServerClient) {
-        getRunningSocketServerClients().remove(socketServerClient);
+    private void __i__onSocketServerClientDisconnected(final SocketServerClient socketServerClient) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onSocketServerClientDisconnected(socketServerClient);
+                }
+            });
+            return;
+        }
 
         ArrayList<SocketServerDelegate> copyList =
                 (ArrayList<SocketServerDelegate>) getSocketServerDelegates().clone();
         int count = copyList.size();
         for (int i = 0; i < count; ++i) {
             copyList.get(i).onClientDisconnected(this, socketServerClient);
-        }
-    }
-
-    /* Private Methods */
-    private boolean internalCheckServerSocketAvailable() {
-        return getRunningServerSocket() != null && !getRunningServerSocket().isClosed();
-    }
-
-    private void internalDisconnectAllClients() {
-        while (getRunningSocketServerClients().size() > 0) {
-            SocketServerClient client = getRunningSocketServerClients().get(0);
-            getRunningSocketServerClients().remove(client);
-            client.disconnect();
         }
     }
 
@@ -380,17 +396,17 @@ public class SocketServer implements SocketClientDelegate {
         public void run() {
             super.run();
             setRunning(true);
-            while (!Thread.interrupted() && self.internalCheckServerSocketAvailable()) {
+            while (!Thread.interrupted()
+                   && self.__i__checkServerSocketAvailable()) {
                 Socket socket = null;
                 try {
                     socket = self.getRunningServerSocket().accept();
 
-                    SocketServerClient socketServerClient = self.internalGetSocketServerClient(socket);
 
-                    Message message = Message.obtain();
-                    message.what = UIHandler.MessageType.ClientConnected.what();
-                    message.obj = socketServerClient;
-                    self.getUiHandler().sendMessage(message);
+                    SocketServerClient socketServerClient = self.internalGetSocketServerClient(socket);
+                    getRunningSocketServerClients().add(socketServerClient);
+                    socketServerClient.registerSocketClientDelegate(self);
+                    self.__i__onSocketServerClientConnected(socketServerClient);
                 }
                 catch (IOException e) {
 //                    e.printStackTrace();
@@ -399,9 +415,12 @@ public class SocketServer implements SocketClientDelegate {
 
             setRunning(false);
 
-            Message message = Message.obtain();
-            message.what = UIHandler.MessageType.StopListen.what();
-            self.getUiHandler().sendMessage(message);
+            self.setListening(false);
+            self.setListenThread(null);
+            self.setRunningServerSocket(null);
+
+            self. __i__disconnectAllClients();
+            self.__i__onSocketServerStopListen();
         }
     }
 }

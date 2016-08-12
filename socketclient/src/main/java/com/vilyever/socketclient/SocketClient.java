@@ -6,29 +6,23 @@ import android.os.Looper;
 import android.os.Message;
 import android.support.annotation.CallSuper;
 import android.support.annotation.NonNull;
-import android.support.annotation.UiThread;
-import android.util.Log;
 
-import com.vilyever.socketclient.helper.HeartBeatHelper;
 import com.vilyever.socketclient.helper.SocketClientAddress;
 import com.vilyever.socketclient.helper.SocketClientDelegate;
-import com.vilyever.socketclient.helper.SocketClientReceiveDelegate;
+import com.vilyever.socketclient.helper.SocketClientReceivingDelegate;
 import com.vilyever.socketclient.helper.SocketClientSendingDelegate;
 import com.vilyever.socketclient.helper.SocketConfigure;
+import com.vilyever.socketclient.helper.SocketHeartBeatHelper;
 import com.vilyever.socketclient.helper.SocketInputReader;
 import com.vilyever.socketclient.helper.SocketPacket;
 import com.vilyever.socketclient.helper.SocketPacketHelper;
 import com.vilyever.socketclient.helper.SocketResponsePacket;
-import com.vilyever.socketclient.util.CharsetUtil;
-import com.vilyever.socketclient.util.ExceptionThrower;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
-import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Arrays;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -44,7 +38,7 @@ public class SocketClient {
 
     /* Constructors */
     public SocketClient() {
-        this(null);
+        this(new SocketClientAddress());
     }
 
     public SocketClient(SocketClientAddress address) {
@@ -58,12 +52,13 @@ public class SocketClient {
         }
 
         if (getAddress() == null) {
-            ExceptionThrower.throwIllegalStateException("we need a SocketClientAddress to connect");
+            throw new IllegalArgumentException("we need a SocketClientAddress to connect");
         }
 
         getAddress().checkValidation();
+        getSocketPacketHelper().checkValidation();
 
-        getSocketConfigure().setCharsetName(getCharsetName()).setHeartBeatHelper(getHeartBeatHelper()).setSocketPacketHelper(getSocketPacketHelper());
+        getSocketConfigure().setCharsetName(getCharsetName()).setAddress(getAddress()).setHeartBeatHelper(getHeartBeatHelper()).setSocketPacketHelper(getSocketPacketHelper());
         setState(State.Connecting);
         getConnectionThread().start();
     }
@@ -75,84 +70,7 @@ public class SocketClient {
 
         setDisconnecting(true);
 
-        if (!getRunningSocket().isClosed()
-                || isConnecting()) {
-            try {
-                getRunningSocket().getOutputStream().close();
-                getRunningSocket().getInputStream().close();
-            }
-            catch (IOException e) {
-//                e.printStackTrace();
-            }
-            finally {
-                try {
-                    getRunningSocket().close();
-                }
-                catch (IOException e) {
-                    e.printStackTrace();
-                }
-                this.runningSocket = null;
-            }
-        }
-
-        if (this.connectionThread != null) {
-            this.connectionThread.interrupt();
-            this.connectionThread = null;
-        }
-        if (this.sendThread != null) {
-            this.sendThread.interrupt();
-            this.sendThread = null;
-        }
-        if (this.receiveThread != null) {
-            this.receiveThread.interrupt();
-            this.receiveThread = null;
-        }
-
-        getUiHandler().sendEmptyMessage(UIHandler.MessageType.Disconnected.what());
-    }
-
-    /**
-     * 发送字符串，将以{@link #charsetName}编码为byte数组
-     * @param message
-     * @return 打包后的数据包
-     */
-    public SocketPacket sendString(String message) {
-        if (!isConnected()) {
-            return null;
-        }
-        SocketPacket socketPacket = new SocketPacket(message);
-        getSendThread().enqueueSocketPacket(socketPacket);
-        return socketPacket;
-    }
-
-    /**
-     * 发送byte数组
-     * @param data
-     * @return 打包后的数据包
-     */
-    public SocketPacket sendData(byte[] data) {
-        if (!isConnected()) {
-            return null;
-        }
-        SocketPacket socketPacket = new SocketPacket(data);
-        getSendThread().enqueueSocketPacket(socketPacket);
-        return socketPacket;
-    }
-
-    public SocketPacket sendPacket(SocketPacket packet) {
-        if (!isConnected()) {
-            return null;
-        }
-        getSendThread().enqueueSocketPacket(packet);
-        return packet;
-    }
-
-    public void cancelSend(SocketPacket socketPacket) {
-        getSendThread().cancel(socketPacket);
-    }
-
-    public void cancelSend(int socketPacketID) {
-        getSendThread().cancel(socketPacketID);
+        getDisconnectionThread().start();
     }
 
     public boolean isConnected() {
@@ -165,6 +83,159 @@ public class SocketClient {
 
     public boolean isConnecting() {
         return getState() == State.Connecting;
+    }
+
+    public SocketClientAddress getConnectedAddress() {
+        return getSocketConfigure().getAddress();
+    }
+
+    /**
+     * 发送byte数组
+     * @param data
+     * @return 打包后的数据包
+     */
+    public SocketPacket sendData(byte[] data) {
+        if (!isConnected()) {
+            return null;
+        }
+        SocketPacket packet = new SocketPacket(data);
+        sendPacket(packet);
+        return packet;
+    }
+
+    /**
+     * 发送字符串，将以{@link #charsetName}编码为byte数组
+     * @param message
+     * @return 打包后的数据包
+     */
+    public SocketPacket sendString(String message) {
+        if (!isConnected()) {
+            return null;
+        }
+        SocketPacket packet = new SocketPacket(message);
+        sendPacket(packet);
+        return packet;
+    }
+
+    public SocketPacket sendPacket(SocketPacket packet) {
+        if (!isConnected()) {
+            return null;
+        }
+
+        if (packet == null) {
+            return null;
+        }
+
+        __i__enqueueNewPacket(packet);
+        return packet;
+    }
+
+    public void cancelSend(final SocketPacket packet) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    self.cancelSend(packet);
+                }
+            }).start();
+            return;
+        }
+
+        synchronized (getSendingPacketQueue()) {
+            if (getSendingPacketQueue().contains(packet)) {
+                getSendingPacketQueue().remove(packet);
+
+                __i__onSendPacketCancel(packet);
+            }
+        }
+    }
+
+    public SocketResponsePacket readDataToLength(final int length) {
+        if (!isConnected()) {
+            return null;
+        }
+
+        if (getSocketConfigure().getSocketPacketHelper().getReadStrategy() != SocketPacketHelper.ReadStrategy.Manually) {
+            return null;
+        }
+
+        if (getReceivingResponsePacket() != null) {
+            return null;
+        }
+
+        setReceivingResponsePacket(new SocketResponsePacket());
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                if (!self.isConnected()) {
+                    return;
+                }
+
+                self.__i__onReceivePacketBegin(self.getReceivingResponsePacket());
+                try {
+                    byte[] data = self.getSocketInputReader().readToLength(length);
+                    self.getReceivingResponsePacket().setData(data);
+                    if (self.getSocketConfigure().getCharsetName() != null) {
+                        self.getReceivingResponsePacket().buildStringWithCharsetName(self.getSocketConfigure().getCharsetName());
+                    }
+                    self.__i__onReceivePacketEnd(self.getReceivingResponsePacket());
+                    self.__i__onReceiveResponse(self.getReceivingResponsePacket());
+                }
+                catch (IOException e) {
+                    e.printStackTrace();
+
+                    if (self.getReceivingResponsePacket() != null) {
+                        self.__i__onReceivePacketCancel(self.getReceivingResponsePacket());
+                        self.setReceivingResponsePacket(null);
+                    }
+                }
+            }
+        }).start();
+
+        return getReceivingResponsePacket();
+    }
+
+    public SocketResponsePacket readDataToData(final byte[] data) {
+        if (!isConnected()) {
+            return null;
+        }
+
+        if (getSocketConfigure().getSocketPacketHelper().getReadStrategy() != SocketPacketHelper.ReadStrategy.Manually) {
+            return null;
+        }
+
+        if (getReceivingResponsePacket() != null) {
+            return null;
+        }
+
+        setReceivingResponsePacket(new SocketResponsePacket());
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                self.__i__onReceivePacketBegin(self.getReceivingResponsePacket());
+                try {
+                    byte[] result = self.getSocketInputReader().readToData(data);
+                    self.getReceivingResponsePacket().setData(result);
+                    if (self.getSocketConfigure().getCharsetName() != null) {
+                        self.getReceivingResponsePacket().buildStringWithCharsetName(self.getSocketConfigure().getCharsetName());
+                    }
+                    self.__i__onReceivePacketEnd(self.getReceivingResponsePacket());
+                    self.__i__onReceiveResponse(self.getReceivingResponsePacket());
+                }
+                catch (IOException e) {
+                    e.printStackTrace();
+
+                    if (self.getReceivingResponsePacket() != null) {
+                        self.__i__onReceivePacketCancel(self.getReceivingResponsePacket());
+                        self.setReceivingResponsePacket(null);
+                    }
+                }
+            }
+        }).start();
+
+        return getReceivingResponsePacket();
     }
 
     /**
@@ -211,9 +282,9 @@ public class SocketClient {
      * 注册信息接收回调
      * @param delegate 回调接收者
      */
-    public SocketClient registerSocketClientReceiveDelegate(SocketClientReceiveDelegate delegate) {
-        if (!getSocketClientReceiveDelegates().contains(delegate)) {
-            getSocketClientReceiveDelegates().add(delegate);
+    public SocketClient registerSocketClientReceiveDelegate(SocketClientReceivingDelegate delegate) {
+        if (!getSocketClientReceivingDelegates().contains(delegate)) {
+            getSocketClientReceivingDelegates().add(delegate);
         }
         return this;
     }
@@ -222,12 +293,69 @@ public class SocketClient {
      * 取消注册信息接收回调
      * @param delegate 回调接收者
      */
-    public SocketClient removeSocketClientReceiveDelegate(SocketClientReceiveDelegate delegate) {
-        getSocketClientReceiveDelegates().remove(delegate);
+    public SocketClient removeSocketClientReceiveDelegate(SocketClientReceivingDelegate delegate) {
+        getSocketClientReceivingDelegates().remove(delegate);
         return this;
     }
 
     /* Properties */
+    private SocketClientAddress address;
+    public SocketClient setAddress(SocketClientAddress address) {
+        this.address = address;
+        return this;
+    }
+    public SocketClientAddress getAddress() {
+        if (this.address == null) {
+            this.address = new SocketClientAddress();
+        }
+        return this.address;
+    }
+
+    /**
+     * 设置默认的编码格式
+     * 为null表示不自动转换data到string
+     */
+    private String charsetName;
+    public SocketClient setCharsetName(String charsetName) {
+        this.charsetName = charsetName;
+        return this;
+    }
+    public String getCharsetName() {
+        return this.charsetName;
+    }
+
+    /**
+     * 发送接收时对信息的处理
+     * 发送添加尾部信息
+     * 接收使用尾部信息截断消息
+     */
+    private SocketPacketHelper socketPacketHelper;
+    public SocketClient setSocketPacketHelper(SocketPacketHelper socketPacketHelper) {
+        this.socketPacketHelper = socketPacketHelper;
+        return this;
+    }
+    public SocketPacketHelper getSocketPacketHelper() {
+        if (this.socketPacketHelper == null) {
+            this.socketPacketHelper = new SocketPacketHelper();
+        }
+        return this.socketPacketHelper;
+    }
+
+    /**
+     * 心跳包信息
+     */
+    private SocketHeartBeatHelper heartBeatHelper;
+    public SocketClient setHeartBeatHelper(SocketHeartBeatHelper heartBeatHelper) {
+        this.heartBeatHelper = heartBeatHelper;
+        return this;
+    }
+    public SocketHeartBeatHelper getHeartBeatHelper() {
+        if (this.heartBeatHelper == null) {
+            this.heartBeatHelper = new SocketHeartBeatHelper();
+        }
+        return this.heartBeatHelper;
+    }
+
     private Socket runningSocket;
     public Socket getRunningSocket() {
         if (this.runningSocket == null) {
@@ -240,16 +368,28 @@ public class SocketClient {
         return this;
     }
 
-    private SocketClientAddress address;
-    public SocketClient setAddress(SocketClientAddress address) {
-        this.address = address;
+    private SocketInputReader socketInputReader;
+    protected SocketClient setSocketInputReader(SocketInputReader socketInputReader) {
+        this.socketInputReader = socketInputReader;
         return this;
     }
-    public SocketClientAddress getAddress() {
-        if (this.address == null) {
-            this.address = new SocketClientAddress();
+    protected SocketInputReader getSocketInputReader() throws IOException {
+        if (this.socketInputReader == null) {
+            this.socketInputReader = new SocketInputReader(getRunningSocket().getInputStream());
         }
-        return this.address;
+        return this.socketInputReader;
+    }
+
+    private SocketConfigure socketConfigure;
+    protected SocketClient setSocketConfigure(SocketConfigure socketConfigure) {
+        this.socketConfigure = socketConfigure;
+        return this;
+    }
+    protected SocketConfigure getSocketConfigure() {
+        if (this.socketConfigure == null) {
+            this.socketConfigure = new SocketConfigure();
+        }
+        return this.socketConfigure;
     }
 
     /**
@@ -268,65 +408,25 @@ public class SocketClient {
         }
         return this.state;
     }
+    public enum State {
+        Disconnected, Connecting, Connected
+    }
 
-    /**
-     * 设置默认的编码格式
-     */
-    private String charsetName;
-    public SocketClient setCharsetName(String charsetName) {
-        if (charsetName == null) {
-            charsetName = CharsetUtil.UTF_8;
-        }
-        this.charsetName = charsetName;
-        getSocketPacketHelper().setCharsetName(charsetName);
-        getHeartBeatHelper().setCharsetName(charsetName);
+    private boolean disconnecting;
+    protected SocketClient setDisconnecting(boolean disconnecting) {
+        this.disconnecting = disconnecting;
         return this;
     }
-    public String getCharsetName() {
-        if (this.charsetName == null) {
-            this.charsetName = CharsetUtil.UTF_8;
-        }
-        return this.charsetName;
+    public boolean isDisconnecting() {
+        return this.disconnecting;
     }
 
-    /**
-     * 发送接收时对信息的处理
-     * 发送添加尾部信息
-     * 接收使用尾部信息截断消息
-     */
-    private SocketPacketHelper socketPacketHelper;
-    public SocketClient setSocketPacketHelper(SocketPacketHelper socketPacketHelper) {
-        this.socketPacketHelper = socketPacketHelper;
-        return this;
-    }
-    public SocketPacketHelper getSocketPacketHelper() {
-        if (this.socketPacketHelper == null) {
-            this.socketPacketHelper = new SocketPacketHelper(getCharsetName());
+    private LinkedBlockingQueue<SocketPacket> sendingPacketQueue;
+    protected LinkedBlockingQueue<SocketPacket> getSendingPacketQueue() {
+        if (sendingPacketQueue == null) {
+            sendingPacketQueue = new LinkedBlockingQueue<SocketPacket>();
         }
-        return this.socketPacketHelper;
-    }
-
-    /**
-     * 心跳包信息
-     */
-    private HeartBeatHelper heartBeatHelper;
-    public SocketClient setHeartBeatHelper(HeartBeatHelper heartBeatHelper) {
-        this.heartBeatHelper = heartBeatHelper;
-        return this;
-    }
-    public HeartBeatHelper getHeartBeatHelper() {
-        if (this.heartBeatHelper == null) {
-            this.heartBeatHelper = new HeartBeatHelper(getCharsetName());
-        }
-        return this.heartBeatHelper;
-    }
-
-    private SocketConfigure socketConfigure;
-    protected SocketConfigure getSocketConfigure() {
-        if (this.socketConfigure == null) {
-            this.socketConfigure = new SocketConfigure();
-        }
-        return this.socketConfigure;
+        return sendingPacketQueue;
     }
 
     /**
@@ -335,10 +435,10 @@ public class SocketClient {
     private CountDownTimer hearBeatCountDownTimer;
     protected CountDownTimer getHearBeatCountDownTimer() {
         if (this.hearBeatCountDownTimer == null) {
-            this.hearBeatCountDownTimer = new CountDownTimer(Long.MAX_VALUE, 1000l) {
+            this.hearBeatCountDownTimer = new CountDownTimer(Long.MAX_VALUE, 1000L) {
                 @Override
                 public void onTick(long millisUntilFinished) {
-                    self.internalOnTimeTick();
+                    self.__i__onTimeTick();
                 }
 
                 @Override
@@ -351,125 +451,6 @@ public class SocketClient {
 
         }
         return this.hearBeatCountDownTimer;
-    }
-
-    private ConnectionThread connectionThread;
-    protected ConnectionThread getConnectionThread() {
-        if (this.connectionThread == null) {
-            this.connectionThread = new ConnectionThread();
-        }
-        return this.connectionThread;
-    }
-
-    private SendThread sendThread;
-    protected SendThread getSendThread() {
-        if (this.sendThread == null) {
-            this.sendThread = new SendThread();
-        }
-        return this.sendThread;
-    }
-
-    private ReceiveThread receiveThread;
-    protected ReceiveThread getReceiveThread() {
-        if (this.receiveThread == null) {
-            this.receiveThread = new ReceiveThread();
-        }
-        return this.receiveThread;
-    }
-
-    private ArrayList<SocketClientDelegate> socketClientDelegates;
-    protected ArrayList<SocketClientDelegate> getSocketClientDelegates() {
-        if (this.socketClientDelegates == null) {
-            this.socketClientDelegates = new ArrayList<SocketClientDelegate>();
-        }
-        return this.socketClientDelegates;
-    }
-
-    private ArrayList<SocketClientSendingDelegate> socketClientSendingDelegates;
-    protected ArrayList<SocketClientSendingDelegate> getSocketClientSendingDelegates() {
-        if (this.socketClientSendingDelegates == null) {
-            this.socketClientSendingDelegates = new ArrayList<SocketClientSendingDelegate>();
-        }
-        return this.socketClientSendingDelegates;
-    }
-
-    private ArrayList<SocketClientReceiveDelegate> socketClientReceiveDelegates;
-    protected ArrayList<SocketClientReceiveDelegate> getSocketClientReceiveDelegates() {
-        if (this.socketClientReceiveDelegates == null) {
-            this.socketClientReceiveDelegates = new ArrayList<SocketClientReceiveDelegate>();
-        }
-        return this.socketClientReceiveDelegates;
-    }
-
-    private UIHandler uiHandler;
-    protected UIHandler getUiHandler() {
-        if (this.uiHandler == null) {
-            this.uiHandler = new UIHandler(this);
-        }
-        return this.uiHandler;
-    }
-    protected static class UIHandler extends Handler {
-        private WeakReference<SocketClient> referenceSocketClient;
-
-        public UIHandler(@NonNull SocketClient referenceSocketClient) {
-            super(Looper.getMainLooper());
-
-            this.referenceSocketClient = new WeakReference<SocketClient>(referenceSocketClient);
-        }
-
-        @Override
-        public void handleMessage(Message msg) {
-            super.handleMessage(msg);
-
-            if (this.referenceSocketClient.get() == null) {
-                return;
-            }
-
-            switch (MessageType.typeFromWhat(msg.what)) {
-                case Connected:
-                    this.referenceSocketClient.get().internalOnConnected();
-                    break;
-                case Disconnected:
-                    this.referenceSocketClient.get().internalOnDisconnected();
-                    break;
-                case ReceiveResponse:
-                    this.referenceSocketClient.get().internalOnReceiveResponse((SocketResponsePacket) msg.obj);
-                    break;
-                case SendingBegin:
-                    this.referenceSocketClient.get().internalOnSendPacketBegin((SocketPacket) msg.obj);
-                    break;
-                case SendingCancel:
-                    this.referenceSocketClient.get().internalOnSendPacketCancel((SocketPacket) msg.obj);
-                    break;
-                case SendingEnd:
-                    this.referenceSocketClient.get().internalOnSendPacketEnd((SocketPacket) msg.obj);
-                    break;
-                case SendingProgress:
-                    this.referenceSocketClient.get().internalOnSendPacketProgress((SocketPacket) msg.obj, msg.arg1 / 100.0f);
-                    break;
-            }
-        }
-
-        public enum MessageType {
-            Connected, Disconnected, ReceiveResponse, SendingBegin, SendingCancel, SendingEnd, SendingProgress;
-
-            public static MessageType typeFromWhat(int what) {
-                return MessageType.values()[what];
-            }
-
-            public int what() {
-                return this.ordinal();
-            }
-        }
-    }
-
-    private boolean disconnecting;
-    protected SocketClient setDisconnecting(boolean disconnecting) {
-        this.disconnecting = disconnecting;
-        return this;
-    }
-    protected boolean isDisconnecting() {
-        return this.disconnecting;
     }
 
     /**
@@ -496,25 +477,189 @@ public class SocketClient {
         return this.lastReceiveMessageTime;
     }
 
+    private SocketPacket sendingPacket;
+    protected SocketClient setSendingPacket(SocketPacket sendingPacket) {
+        this.sendingPacket = sendingPacket;
+        return this;
+    }
+    protected SocketPacket getSendingPacket() {
+        return this.sendingPacket;
+    }
+
+    private SocketResponsePacket receivingResponsePacket;
+    protected SocketClient setReceivingResponsePacket(SocketResponsePacket receivingResponsePacket) {
+        this.receivingResponsePacket = receivingResponsePacket;
+        return this;
+    }
+    protected SocketResponsePacket getReceivingResponsePacket() {
+        return this.receivingResponsePacket;
+    }
+
+    private ConnectionThread connectionThread;
+    protected SocketClient setConnectionThread(ConnectionThread connectionThread) {
+        this.connectionThread = connectionThread;
+        return this;
+    }
+    protected ConnectionThread getConnectionThread() {
+        if (this.connectionThread == null) {
+            this.connectionThread = new ConnectionThread();
+        }
+        return this.connectionThread;
+    }
+
+    private DisconnectionThread disconnectionThread;
+    protected SocketClient setDisconnectionThread(DisconnectionThread disconnectionThread) {
+        this.disconnectionThread = disconnectionThread;
+        return this;
+    }
+    protected DisconnectionThread getDisconnectionThread() {
+        if (this.disconnectionThread == null) {
+            this.disconnectionThread = new DisconnectionThread();
+        }
+        return this.disconnectionThread;
+    }
+
+    private SendThread sendThread;
+    protected SocketClient setSendThread(SendThread sendThread) {
+        this.sendThread = sendThread;
+        return this;
+    }
+    protected SendThread getSendThread() {
+        if (this.sendThread == null) {
+            this.sendThread = new SendThread();
+        }
+        return this.sendThread;
+    }
+
+    private ReceiveThread receiveThread;
+    protected SocketClient setReceiveThread(ReceiveThread receiveThread) {
+        this.receiveThread = receiveThread;
+        return this;
+    }
+    protected ReceiveThread getReceiveThread() {
+        if (this.receiveThread == null) {
+            this.receiveThread = new ReceiveThread();
+        }
+        return this.receiveThread;
+    }
+
+    private ArrayList<SocketClientDelegate> socketClientDelegates;
+    protected ArrayList<SocketClientDelegate> getSocketClientDelegates() {
+        if (this.socketClientDelegates == null) {
+            this.socketClientDelegates = new ArrayList<SocketClientDelegate>();
+        }
+        return this.socketClientDelegates;
+    }
+
+    private ArrayList<SocketClientSendingDelegate> socketClientSendingDelegates;
+    protected ArrayList<SocketClientSendingDelegate> getSocketClientSendingDelegates() {
+        if (this.socketClientSendingDelegates == null) {
+            this.socketClientSendingDelegates = new ArrayList<SocketClientSendingDelegate>();
+        }
+        return this.socketClientSendingDelegates;
+    }
+
+    private ArrayList<SocketClientReceivingDelegate> socketClientReceivingDelegates;
+    protected ArrayList<SocketClientReceivingDelegate> getSocketClientReceivingDelegates() {
+        if (this.socketClientReceivingDelegates == null) {
+            this.socketClientReceivingDelegates = new ArrayList<SocketClientReceivingDelegate>();
+        }
+        return this.socketClientReceivingDelegates;
+    }
+
+    private UIHandler uiHandler;
+    protected UIHandler getUiHandler() {
+        if (this.uiHandler == null) {
+            this.uiHandler = new UIHandler(this);
+        }
+        return this.uiHandler;
+    }
+    private static class UIHandler extends Handler {
+        private WeakReference<SocketClient> referenceSocketClient;
+
+        public UIHandler(@NonNull SocketClient referenceSocketClient) {
+            super(Looper.getMainLooper());
+
+            this.referenceSocketClient = new WeakReference<SocketClient>(referenceSocketClient);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+        }
+    }
+
     /* Overrides */
      
      
     /* Delegates */
 
+
     /* Protected Methods */
-    @UiThread
     @CallSuper
     protected void internalOnConnected() {
-        setState(State.Connected);
-
-        getSendThread().start();
-        getReceiveThread().start();
+        setState(SocketClient.State.Connected);
 
         setLastSendHeartBeatMessageTime(System.currentTimeMillis());
         setLastReceiveMessageTime(System.currentTimeMillis());
 
-        getHearBeatCountDownTimer().start();
+        setSendingPacket(null);
+        setReceivingResponsePacket(null);
 
+        __i__onConnected();
+    }
+
+    /* Private Methods */
+    private void __i__enqueueNewPacket(final SocketPacket packet) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__enqueueNewPacket(packet);
+                }
+            }).start();
+            return;
+        }
+
+        if (!isConnected()) {
+            return;
+        }
+
+        synchronized (getSendingPacketQueue()) {
+            try {
+                getSendingPacketQueue().put(packet);
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void __i__sendHeartBeat() {
+        if (!isConnected()) {
+            return;
+        }
+
+        if (getSocketConfigure() == null
+                || getSocketConfigure().getHeartBeatHelper() == null
+                || !getSocketConfigure().getHeartBeatHelper().isSendHeartBeatEnabled()) {
+            return;
+        }
+
+        SocketPacket packet = new SocketPacket(getSocketConfigure().getHeartBeatHelper().getSendData(), true);
+        __i__enqueueNewPacket(packet);
+    }
+
+    private void __i__onConnected() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onConnected();
+                }
+            });
+            return;
+        }
 
         ArrayList<SocketClientDelegate> delegatesCopy =
                 (ArrayList<SocketClientDelegate>) getSocketClientDelegates().clone();
@@ -522,15 +667,22 @@ public class SocketClient {
         for (int i = 0; i < count; ++i) {
             delegatesCopy.get(i).onConnected(this);
         }
+
+        getSendThread().start();
+        getReceiveThread().start();
+        getHearBeatCountDownTimer().start();
     }
 
-    @UiThread
-    @CallSuper
-    protected void internalOnDisconnected() {
-        setDisconnecting(false);
-        setState(State.Disconnected);
-
-        getHearBeatCountDownTimer().cancel();
+    private void __i__onDisconnected() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onDisconnected();
+                }
+            });
+            return;
+        }
 
         ArrayList<SocketClientDelegate> delegatesCopy =
                 (ArrayList<SocketClientDelegate>) getSocketClientDelegates().clone();
@@ -540,15 +692,18 @@ public class SocketClient {
         }
     }
 
-    @UiThread
-    @CallSuper
-    protected void internalOnReceiveResponse(@NonNull SocketResponsePacket responsePacket) {
-        setLastReceiveMessageTime(System.currentTimeMillis());
-
-        if (responsePacket.isMatch(getSocketConfigure().getHeartBeatHelper().getReceiveData())) {
-            internalOnReceiveHeartBeat();
+    private void __i__onReceiveResponse(@NonNull final SocketResponsePacket responsePacket) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onReceiveResponse(responsePacket);
+                }
+            });
             return;
         }
+
+        setLastReceiveMessageTime(System.currentTimeMillis());
 
         if (getSocketClientDelegates().size() > 0) {
             ArrayList<SocketClientDelegate> delegatesCopy =
@@ -558,34 +713,18 @@ public class SocketClient {
                 delegatesCopy.get(i).onResponse(this, responsePacket);
             }
         }
-
-        if (getSocketClientReceiveDelegates().size() > 0) {
-            ArrayList<SocketClientReceiveDelegate> delegatesCopy =
-                    (ArrayList<SocketClientReceiveDelegate>) getSocketClientReceiveDelegates().clone();
-            int count = delegatesCopy.size();
-            for (int i = 0; i < count; ++i) {
-                delegatesCopy.get(i).onResponse(this, responsePacket);
-            }
-        }
     }
 
-    @UiThread
-    @CallSuper
-    protected void internalOnReceiveHeartBeat() {
-
-        if (getSocketClientDelegates().size() > 0) {
-            ArrayList<SocketClientReceiveDelegate> delegatesCopy =
-                    (ArrayList<SocketClientReceiveDelegate>) getSocketClientReceiveDelegates().clone();
-            int count = delegatesCopy.size();
-            for (int i = 0; i < count; ++i) {
-                delegatesCopy.get(i).onHeartBeat(this);
-            }
+    private void __i__onSendPacketBegin(final SocketPacket packet) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onSendPacketBegin(packet);
+                }
+            });
+            return;
         }
-    }
-
-    @UiThread
-    @CallSuper
-    protected void internalOnSendPacketBegin(SocketPacket packet) {
 
         if (getSocketClientDelegates().size() > 0) {
             ArrayList<SocketClientSendingDelegate> delegatesCopy =
@@ -597,23 +736,16 @@ public class SocketClient {
         }
     }
 
-    @UiThread
-    @CallSuper
-    protected void internalOnSendPacketCancel(SocketPacket packet) {
-
-        if (getSocketClientDelegates().size() > 0) {
-            ArrayList<SocketClientSendingDelegate> delegatesCopy =
-                    (ArrayList<SocketClientSendingDelegate>) getSocketClientSendingDelegates().clone();
-            int count = delegatesCopy.size();
-            for (int i = 0; i < count; ++i) {
-                delegatesCopy.get(i).onSendPacketCancel(this, packet);
-            }
+    private void __i__onSendPacketEnd(final SocketPacket packet) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onSendPacketEnd(packet);
+                }
+            });
+            return;
         }
-    }
-
-    @UiThread
-    @CallSuper
-    protected void internalOnSendPacketEnd(SocketPacket packet) {
 
         if (getSocketClientDelegates().size() > 0) {
             ArrayList<SocketClientSendingDelegate> delegatesCopy =
@@ -625,45 +757,158 @@ public class SocketClient {
         }
     }
 
-    @UiThread
-    @CallSuper
-    protected void internalOnSendPacketProgress(SocketPacket packet, float progress) {
+    private void __i__onSendPacketCancel(final SocketPacket packet) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onSendPacketCancel(packet);
+                }
+            });
+            return;
+        }
 
         if (getSocketClientDelegates().size() > 0) {
             ArrayList<SocketClientSendingDelegate> delegatesCopy =
                     (ArrayList<SocketClientSendingDelegate>) getSocketClientSendingDelegates().clone();
             int count = delegatesCopy.size();
             for (int i = 0; i < count; ++i) {
-                delegatesCopy.get(i).onSendPacketProgress(this, packet, progress);
+                delegatesCopy.get(i).onSendPacketCancel(this, packet);
             }
         }
     }
 
-    @CallSuper
-    protected void internalOnTimeTick() {
+    private void __i__onSendingPacketInProgress(final SocketPacket packet, final int sendedLength, final int headerLength, final int packetLengthDataLength, final int dataLength, final int trailerLength) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onSendingPacketInProgress(packet, sendedLength, headerLength, packetLengthDataLength, dataLength, trailerLength);
+                }
+            });
+            return;
+        }
+
+        float progress = sendedLength / (float) (headerLength + packetLengthDataLength + dataLength + trailerLength);
+
+        if (getSocketClientDelegates().size() > 0) {
+            ArrayList<SocketClientSendingDelegate> delegatesCopy =
+                    (ArrayList<SocketClientSendingDelegate>) getSocketClientSendingDelegates().clone();
+            int count = delegatesCopy.size();
+            for (int i = 0; i < count; ++i) {
+                delegatesCopy.get(i).onSendingPacketInProgress(this, packet, progress, sendedLength);
+            }
+        }
+    }
+
+    private void __i__onReceivePacketBegin(final SocketResponsePacket packet) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onReceivePacketBegin(packet);
+                }
+            });
+            return;
+        }
+
+        if (getSocketClientReceivingDelegates().size() > 0) {
+            ArrayList<SocketClientReceivingDelegate> delegatesCopy =
+                    (ArrayList<SocketClientReceivingDelegate>) getSocketClientReceivingDelegates().clone();
+            int count = delegatesCopy.size();
+            for (int i = 0; i < count; ++i) {
+                delegatesCopy.get(i).onReceivePacketBegin(this, packet);
+            }
+        }
+    }
+
+    private void __i__onReceivePacketEnd(final SocketResponsePacket packet) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onReceivePacketEnd(packet);
+                }
+            });
+            return;
+        }
+
+        if (getSocketClientReceivingDelegates().size() > 0) {
+            ArrayList<SocketClientReceivingDelegate> delegatesCopy =
+                    (ArrayList<SocketClientReceivingDelegate>) getSocketClientReceivingDelegates().clone();
+            int count = delegatesCopy.size();
+            for (int i = 0; i < count; ++i) {
+                delegatesCopy.get(i).onReceivePacketEnd(this, packet);
+            }
+        }
+    }
+
+    private void __i__onReceivePacketCancel(final SocketResponsePacket packet) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onReceivePacketCancel(packet);
+                }
+            });
+            return;
+        }
+
+        if (getSocketClientReceivingDelegates().size() > 0) {
+            ArrayList<SocketClientReceivingDelegate> delegatesCopy =
+                    (ArrayList<SocketClientReceivingDelegate>) getSocketClientReceivingDelegates().clone();
+            int count = delegatesCopy.size();
+            for (int i = 0; i < count; ++i) {
+                delegatesCopy.get(i).onReceivePacketCancel(this, packet);
+            }
+        }
+    }
+
+    private void __i__onReceivingPacketInProgress(final SocketResponsePacket packet, final int receivedLength, final int headerLength, final int packetLengthDataLength, final int dataLength, final int trailerLength) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onReceivingPacketInProgress(packet, receivedLength, headerLength, packetLengthDataLength, dataLength, trailerLength);
+                }
+            });
+            return;
+        }
+
+        float progress = receivedLength / (float) (headerLength + packetLengthDataLength + dataLength + trailerLength);
+
+        if (getSocketClientReceivingDelegates().size() > 0) {
+            ArrayList<SocketClientReceivingDelegate> delegatesCopy =
+                    (ArrayList<SocketClientReceivingDelegate>) getSocketClientReceivingDelegates().clone();
+            int count = delegatesCopy.size();
+            for (int i = 0; i < count; ++i) {
+                delegatesCopy.get(i).onReceivingPacketInProgress(this, packet, progress, receivedLength);
+            }
+        }
+    }
+
+    private void __i__onTimeTick() {
+        if (!isConnected()) {
+            return;
+        }
+
         long currentTime = System.currentTimeMillis();
 
-        if (getSocketConfigure().getHeartBeatHelper().shouldSendHeartBeat()) {
+        if (getSocketConfigure().getHeartBeatHelper().isSendHeartBeatEnabled()) {
             if (currentTime - getLastSendHeartBeatMessageTime() >= getSocketConfigure().getHeartBeatHelper().getHeartBeatInterval()) {
-                sendData(getSocketConfigure().getHeartBeatHelper().getSendData());
+                __i__sendHeartBeat();
                 setLastSendHeartBeatMessageTime(currentTime);
             }
         }
 
-        if (getSocketConfigure().getHeartBeatHelper().shouldAutoDisconnectWhenRemoteNoReplyAliveTimeout()) {
+        if (getSocketConfigure().getHeartBeatHelper().isAutoDisconnectOnRemoteNoReplyAliveTimeout()) {
             if (currentTime - getLastReceiveMessageTime() >= getSocketConfigure().getHeartBeatHelper().getRemoteNoReplyAliveTimeout()) {
                 disconnect();
             }
         }
     }
      
-    /* Private Methods */
-    
-
     /* Enums */
-    public enum State {
-        Disconnected, Connecting, Connected
-    }
 
     /* Inner Classes */
     private class ConnectionThread extends Thread {
@@ -672,8 +917,27 @@ public class SocketClient {
             super.run();
 
             try {
-                self.getRunningSocket().connect(new InetSocketAddress(self.getAddress().getRemoteIP(), self.getAddress().getRemotePort()), self.getAddress().getConnectionTimeout());
-                self.getUiHandler().sendEmptyMessage(UIHandler.MessageType.Connected.what());
+                SocketClientAddress address = self.getSocketConfigure().getAddress();
+
+                if (Thread.interrupted()) {
+                    return;
+                }
+
+                self.getRunningSocket().connect(address.getInetSocketAddress(), address.getConnectionTimeout());
+
+                if (Thread.interrupted()) {
+                    return;
+                }
+
+                self.setState(SocketClient.State.Connected);
+
+                self.setLastSendHeartBeatMessageTime(System.currentTimeMillis());
+                self.setLastReceiveMessageTime(System.currentTimeMillis());
+
+                self.setSendingPacket(null);
+                self.setReceivingResponsePacket(null);
+
+                self.__i__onConnected();
             }
             catch (IOException e) {
                 e.printStackTrace();
@@ -683,204 +947,202 @@ public class SocketClient {
         }
     }
 
-    private class SendThread extends Thread {
-        public SendThread() {
-        }
+    private class DisconnectionThread extends Thread {
+        @Override
+        public void run() {
+            super.run();
 
-        private LinkedBlockingQueue<SocketPacket> sendingPacketQueue;
-        protected LinkedBlockingQueue<SocketPacket> getSendingPacketQueue() {
-            if (sendingPacketQueue == null) {
-                sendingPacketQueue = new LinkedBlockingQueue<SocketPacket>();
-            }
-            return sendingPacketQueue;
-        }
-
-        private SocketPacket sendingSocketPacket;
-        protected SendThread setSendingSocketPacket(SocketPacket sendingSocketPacket) {
-            this.sendingSocketPacket = sendingSocketPacket;
-            return this;
-        }
-        public SocketPacket getSendingSocketPacket() {
-            return this.sendingSocketPacket;
-        }
-
-        public void enqueueSocketPacket(final SocketPacket socketPacket) {
-            if (getSendingSocketPacket() == socketPacket
-                    || getSendingPacketQueue().contains(socketPacket)) {
-                Log.w(TAG, "the socketPacket with ID " + socketPacket.getID() + " is already in sending queue.");
-                return;
+            if (self.getConnectionThread() != null) {
+                self.getConnectionThread().interrupt();
+                self.setConnectionThread(null);
             }
 
-            try {
-                getSendingPacketQueue().put(socketPacket);
-            }
-            catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-
-        public void cancel(SocketPacket packet) {
-            if (getSendingSocketPacket() != null
-                    && getSendingSocketPacket() == packet) {
-                getSendingSocketPacket().setCanceled(true);
-            }
-            else {
-                getSendingPacketQueue().remove(packet);
-            }
-        }
-
-        public void cancel(int socketPacketID) {
-            if (getSendingSocketPacket() != null
-                    && getSendingSocketPacket().getID() == socketPacketID) {
-                getSendingSocketPacket().setCanceled(true);
-            }
-            else {
-                Iterator<SocketPacket> iterator = getSendingPacketQueue().iterator();
-                while (iterator.hasNext()) {
-                    SocketPacket packet = iterator.next();
-                    if (packet.getID() == socketPacketID) {
-                        iterator.remove();
-                        break;
+            if (!self.getRunningSocket().isClosed()
+                || self.isConnecting()) {
+                try {
+                    self.getRunningSocket().getOutputStream().close();
+                    self.getRunningSocket().getInputStream().close();
+                }
+                catch (IOException e) {
+//                e.printStackTrace();
+                }
+                finally {
+                    try {
+                        self.getRunningSocket().close();
                     }
+                    catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    self.setRunningSocket(null);
                 }
             }
+
+            if (self.getSendThread() != null) {
+                self.getSendThread().interrupt();
+                self.setSendThread(null);
+            }
+            if (self.getReceiveThread() != null) {
+                self.getReceiveThread().interrupt();
+                self.setReceiveThread(null);
+            }
+
+            self.setDisconnecting(false);
+            self.setState(SocketClient.State.Disconnected);
+            self.setSocketInputReader(null);
+            self.setSocketConfigure(null);
+
+            self.getHearBeatCountDownTimer().cancel();
+
+            if (self.getSendingPacket() != null) {
+                self.__i__onSendPacketCancel(self.getSendingPacket());
+                self.setSendingPacket(null);
+            }
+
+            SocketPacket packet;
+            while ((packet = self.getSendingPacketQueue().poll()) != null) {
+                self.__i__onSendPacketCancel(packet);
+            }
+
+            if (self.getReceivingResponsePacket() != null) {
+                self.__i__onReceivePacketCancel(self.getReceivingResponsePacket());
+                self.setReceivingResponsePacket(null);
+            }
+
+            self.setDisconnectionThread(null);
+            self.__i__onDisconnected();
+        }
+    }
+
+    private class SendThread extends Thread {
+        public SendThread() {
         }
 
         @Override
         public void run() {
             super.run();
+
             SocketPacket packet;
             try {
                 while (self.isConnected()
                        && !Thread.interrupted()
-                        && (packet = getSendingPacketQueue().take()) != null) {
-                    setSendingSocketPacket(packet);
-                    packet.setCanceled(false);
-                    packet.setSendingProgress(0.0f);
+                        && (packet = self.getSendingPacketQueue().take()) != null) {
+                    self.setSendingPacket(packet);
 
-                    internalBeginSendPacket(packet);
+                    if (packet.getData() == null
+                        && packet.getMessage() != null) {
+                        if (self.getSocketConfigure().getCharsetName() == null) {
+                            throw new IllegalArgumentException("we need string charset to send string type message");
+                        }
+                        else {
+                            packet.buildDataWithCharsetName(self.getSocketConfigure().getCharsetName());
+                        }
+                    }
 
-                    internalUpdateSendProgress(packet);
-
-                    if (!internalCheckShouldContinueSend(packet)) {
+                    if (packet.getData() == null) {
+                        self.__i__onSendPacketCancel(packet);
+                        self.setSendingPacket(null);
                         continue;
                     }
 
-                    byte[] data = packet.getData();
-                    if (data == null && packet.getMessage() != null) {
-                        data = CharsetUtil.stringToData(packet.getMessage(), self.getSocketConfigure().getCharsetName());
+                    byte[] headerData = self.getSocketConfigure().getSocketPacketHelper().getSendHeaderData();
+                    int headerDataLength = headerData == null ? 0 : headerData.length;
+
+                    byte[] trailerData = self.getSocketConfigure().getSocketPacketHelper().getSendTrailerData();
+                    int trailerDataLength = trailerData == null ? 0 : trailerData.length;
+
+                    byte[] packetLengthData = self.getSocketConfigure().getSocketPacketHelper().getSendPacketLengthData(packet.getData().length + trailerDataLength);
+                    int packetLengthDataLength = packetLengthData == null ? 0 : packetLengthData.length;
+
+                    int sendedPacketLength = 0;
+
+                    packet.setHeaderData(headerData);
+                    packet.setTrailerData(trailerData);
+                    packet.setPacketLengthData(packetLengthData);
+
+                    if (headerDataLength + packetLengthDataLength + packet.getData().length + trailerDataLength <= 0) {
+                        self.__i__onSendPacketCancel(packet);
+                        self.setSendingPacket(null);
+                        continue;
                     }
 
-                    if (data != null && data.length > 0) {
-                        try {
-                            // 发送包头
-                            byte[] headerData = self.getSocketConfigure().getSocketPacketHelper().getSendHeaderData();
-                            if (headerData != null) {
-                                if (!internalCheckShouldContinueSend(packet)) {
-                                    continue;
-                                }
-                                self.getRunningSocket().getOutputStream().write(headerData);
-                                self.getRunningSocket().getOutputStream().flush();
+                    self.__i__onSendPacketBegin(packet);
+                    self.__i__onSendingPacketInProgress(packet, sendedPacketLength, headerDataLength, packetLengthDataLength, packet.getData().length, trailerDataLength);
 
-                                packet.setSendingProgress(0.01f);
-                                internalUpdateSendProgress(packet);
-                            }
+                    try {
+                        if (headerDataLength > 0) {
+                            self.getRunningSocket().getOutputStream().write(headerData);
+                            self.getRunningSocket().getOutputStream().flush();
 
-                            int segmentLength = self.getSocketConfigure().getSocketPacketHelper().getSegmentLength();
-                            if (segmentLength == SocketPacketHelper.SegmentLengthMax) {
-                                if (!internalCheckShouldContinueSend(packet)) {
-                                    continue;
-                                }
-                                self.getRunningSocket().getOutputStream().write(data);
-                                self.getRunningSocket().getOutputStream().flush();
-                            }
-                            else {
+                            sendedPacketLength += headerDataLength;
+                            self.__i__onSendingPacketInProgress(packet, sendedPacketLength, headerDataLength, packetLengthDataLength, packet.getData().length, trailerDataLength);
+                        }
+
+                        if (packetLengthDataLength > 0) {
+                            self.getRunningSocket().getOutputStream().write(packetLengthData);
+                            self.getRunningSocket().getOutputStream().flush();
+
+                            sendedPacketLength += packetLengthDataLength;
+                            self.__i__onSendingPacketInProgress(packet, sendedPacketLength, headerDataLength, packetLengthDataLength, packet.getData().length, trailerDataLength);
+                        }
+
+                        if (packet.getData().length > 0) {
+                            if (self.getSocketConfigure().getSocketPacketHelper().isSendSegmentEnabled()) {
+                                int segmentLength = self.getSocketConfigure().getSocketPacketHelper().getSendSegmentLength();
                                 int offset = 0;
 
-                                while (offset < data.length) {
-                                    if (!internalCheckShouldContinueSend(packet)) {
-                                        continue;
-                                    }
-
+                                while (offset < packet.getData().length) {
                                     int end = offset + segmentLength;
-                                    end = Math.min(data.length, end);
-                                    self.getRunningSocket().getOutputStream().write(data, offset, end - offset);
+                                    end = Math.min(end, packet.getData().length);
+                                    self.getRunningSocket().getOutputStream().write(packet.getData(), offset, end - offset);
                                     self.getRunningSocket().getOutputStream().flush();
 
-                                    float progress = end / (float) data.length;
-                                    progress = Math.max(0.01f, progress);
-                                    progress = Math.min(0.99f, progress);
 
-                                    packet.setSendingProgress(progress);
-                                    internalUpdateSendProgress(packet);
+                                    sendedPacketLength += end - offset;
+
+                                    self.__i__onSendingPacketInProgress(packet, sendedPacketLength, headerDataLength, packetLengthDataLength, packet.getData().length, trailerDataLength);
 
                                     offset = end;
                                 }
                             }
-
-                            // 发送包尾
-                            byte[] tailData = self.getSocketConfigure().getSocketPacketHelper().getSendTrailerData();
-                            if (tailData != null) {
-                                if (!internalCheckShouldContinueSend(packet)) {
-                                    continue;
-                                }
-                                self.getRunningSocket().getOutputStream().write(tailData);
+                            else {
+                                self.getRunningSocket().getOutputStream().write(packet.getData());
                                 self.getRunningSocket().getOutputStream().flush();
 
+                                sendedPacketLength += packet.getData().length;
+
+                                self.__i__onSendingPacketInProgress(packet, sendedPacketLength, headerDataLength, packetLengthDataLength, packet.getData().length, trailerDataLength);
                             }
-
-                            packet.setSendingProgress(1.0f);
-                            internalUpdateSendProgress(packet);
-
-                            internalEndSendPacket(packet);
                         }
-                        catch (IOException e) {
-                            e.printStackTrace();
+
+                        if (trailerDataLength > 0) {
+                            self.getRunningSocket().getOutputStream().write(trailerData);
+                            self.getRunningSocket().getOutputStream().flush();
+
+                            sendedPacketLength += trailerDataLength;
+
+                            self.__i__onSendingPacketInProgress(packet, sendedPacketLength, headerDataLength, packetLengthDataLength, packet.getData().length, trailerDataLength);
+                        }
+
+                        self.__i__onSendPacketEnd(packet);
+                        self.setSendingPacket(null);
+                    }
+                    catch (IOException e) {
+                        e.printStackTrace();
+
+                        if (self.getSendingPacket() != null) {
+                            self.__i__onSendPacketCancel(self.getSendingPacket());
+                            self.setSendingPacket(null);
                         }
                     }
                 }
             }
             catch (InterruptedException e) {
 //                e.printStackTrace();
+                if (self.getSendingPacket() != null) {
+                    self.__i__onSendPacketCancel(self.getSendingPacket());
+                    self.setSendingPacket(null);
+                }
             }
-        }
-
-        private boolean internalCheckShouldContinueSend(SocketPacket packet) {
-            if (packet.isCanceled() || Thread.interrupted()) {
-                internalCancelSendPacket(packet);
-                return false;
-            }
-
-            return true;
-        }
-
-        private void internalCancelSendPacket(SocketPacket packet) {
-            Message message = Message.obtain();
-            message.what = UIHandler.MessageType.SendingCancel.what();
-            message.obj = packet;
-            self.getUiHandler().sendMessage(message);
-        }
-
-        private void internalBeginSendPacket(SocketPacket packet) {
-            Message message = Message.obtain();
-            message.what = UIHandler.MessageType.SendingBegin.what();
-            message.obj = packet;
-            self.getUiHandler().sendMessage(message);
-        }
-
-        private void internalEndSendPacket(SocketPacket packet) {
-            Message message = Message.obtain();
-            message.what = UIHandler.MessageType.SendingEnd.what();
-            message.obj = packet;
-            self.getUiHandler().sendMessage(message);
-        }
-
-        private void internalUpdateSendProgress(SocketPacket packet) {
-            Message message = Message.obtain();
-            message.what = UIHandler.MessageType.SendingProgress.what();
-            message.obj = packet;
-            message.arg1 = (int) (packet.getSendingProgress() * 100);
-            self.getUiHandler().sendMessage(message);
         }
     }
 
@@ -889,35 +1151,142 @@ public class SocketClient {
         public void run() {
             super.run();
 
-            SocketInputReader inputReader = null;
+            if (self.getSocketConfigure().getSocketPacketHelper().getReadStrategy() == SocketPacketHelper.ReadStrategy.Manually) {
+                return;
+            }
+
             try {
-                inputReader = new SocketInputReader(self.getRunningSocket().getInputStream());
+                while (self.isConnected()
+                       && self.getSocketInputReader() != null
+                       && !Thread.interrupted()) {
+                    SocketResponsePacket packet = new SocketResponsePacket();
+                    self.setReceivingResponsePacket(packet);
 
-                while (self.isConnected() && !Thread.interrupted()) {
-                    byte[] result = inputReader.readBytes(self.getSocketConfigure().getSocketPacketHelper().getReceiveHeaderData(), self.getSocketConfigure().getSocketPacketHelper().getReceiveTrailerData());
-                    if (result == null) {
-                        self.disconnect();
-                        break;
+                    byte[] headerData = self.getSocketConfigure().getSocketPacketHelper().getReceiveHeaderData();
+                    int headerDataLength = headerData == null ? 0 : headerData.length;
+
+                    byte[] trailerData = self.getSocketConfigure().getSocketPacketHelper().getReceiveTrailerData();
+                    int trailerDataLength = trailerData == null ? 0 : trailerData.length;
+
+                    int packetLengthDataLength = self.getSocketConfigure().getSocketPacketHelper().getReceivePacketLengthDataLength();
+
+                    int dataLength = 0;
+                    int receivedPacketLength = 0;
+
+                    self.__i__onReceivePacketBegin(packet);
+
+                    if (headerDataLength > 0) {
+                        byte[] data = self.getSocketInputReader().readToData(headerData);
+                        packet.setHeaderData(data);
+
+                        receivedPacketLength += headerDataLength;
                     }
 
-                    String resultMessage = null;
-                    try {
-                        resultMessage = new String(result, Charset.forName(self.getSocketConfigure().getCharsetName()));
-                    }
-                    catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                    SocketResponsePacket responsePacket = new SocketResponsePacket(result, resultMessage);
+                    if (self.getSocketConfigure().getSocketPacketHelper().getReadStrategy() == SocketPacketHelper.ReadStrategy.AutoReadByLength) {
+                        if (packetLengthDataLength < 0) {
+                            self.__i__onReceivePacketCancel(packet);
+                            self.setReceivingResponsePacket(null);
+                        }
+                        else if (packetLengthDataLength == 0) {
+                            self.__i__onReceivePacketEnd(packet);
+                            self.setReceivingResponsePacket(null);
+                        }
 
-                    Message message = Message.obtain();
-                    message.what = UIHandler.MessageType.ReceiveResponse.what();
-                    message.obj = responsePacket;
-                    self.getUiHandler().sendMessage(message);
+                        byte[] data = self.getSocketInputReader().readToLength(packetLengthDataLength);
+                        packet.setPacketLengthData(data);
+
+                        receivedPacketLength += packetLengthDataLength;
+
+                        int bodyTrailerLength = self.getSocketConfigure().getSocketPacketHelper().getReceivePacketDataLength(data);
+
+                        dataLength = bodyTrailerLength - trailerDataLength;
+
+                        if (dataLength > 0) {
+                            if (self.getSocketConfigure().getSocketPacketHelper().isReceiveSegmentEnabled()) {
+                                int segmentLength = self.getSocketConfigure().getSocketPacketHelper().getReceiveSegmentLength();
+                                int offset = 0;
+                                while (offset < dataLength) {
+                                    int end = offset + segmentLength;
+                                    end = Math.min(end, dataLength);
+                                    data = self.getSocketInputReader().readToLength(end - offset);
+
+                                    if (packet.getData() == null) {
+                                        packet.setData(data);
+                                    }
+                                    else {
+                                        byte[] mergedData = new byte[packet.getData().length + data.length];
+
+                                        System.arraycopy(packet.getData(), 0, mergedData, 0, packet.getData().length);
+                                        System.arraycopy(data, 0, mergedData, packet.getData().length, data.length);
+
+                                        packet.setData(mergedData);
+                                    }
+
+                                    receivedPacketLength += end - offset;
+
+                                    self.__i__onReceivingPacketInProgress(packet, receivedPacketLength, headerDataLength, packetLengthDataLength, dataLength, trailerDataLength);
+
+                                    offset = end;
+                                }
+                            }
+                            else {
+                                data = self.getSocketInputReader().readToLength(dataLength);
+
+                                packet.setData(data);
+
+                                receivedPacketLength += data.length;
+
+                                self.__i__onReceivingPacketInProgress(packet, receivedPacketLength, headerDataLength, packetLengthDataLength, dataLength, trailerDataLength);
+
+                            }
+                        }
+                        else if (dataLength < 0) {
+                            self.__i__onReceivePacketCancel(packet);
+                            self.setReceivingResponsePacket(null);
+                        }
+
+                        if (trailerDataLength > 0) {
+                            data = self.getSocketInputReader().readToLength(trailerDataLength);
+                            packet.setTrailerData(data);
+
+                            receivedPacketLength += trailerDataLength;
+
+                            self.__i__onReceivingPacketInProgress(packet, receivedPacketLength, headerDataLength, packetLengthDataLength, dataLength, trailerDataLength);
+                        }
+                    }
+                    else if (self.getSocketConfigure().getSocketPacketHelper().getReadStrategy() == SocketPacketHelper.ReadStrategy.AutoReadToTrailer) {
+                        if (trailerDataLength > 0) {
+                            byte[] data = self.getSocketInputReader().readToData(trailerData);
+                            packet.setData(Arrays.copyOf(data, data.length - trailerDataLength));
+                            packet.setTrailerData(trailerData);
+
+                            receivedPacketLength += data.length;
+                        }
+                        else {
+                            self.__i__onReceivePacketCancel(packet);
+                            self.setReceivingResponsePacket(null);
+                        }
+                    }
+
+                    packet.setHeartBeat(self.getSocketConfigure().getHeartBeatHelper().isReceiveHeartBeatPacket(packet));
+
+                    if (self.getSocketConfigure().getCharsetName() != null) {
+                        packet.buildStringWithCharsetName(self.getSocketConfigure().getCharsetName());
+                    }
+
+                    self.__i__onReceivePacketEnd(packet);
+                    self.__i__onReceiveResponse(packet);
+                    self.setReceivingResponsePacket(null);
                 }
             }
             catch (IOException e) {
                 e.printStackTrace();
                 self.disconnect();
+
+                if (self.getReceivingResponsePacket() != null) {
+                    self.__i__onReceivePacketCancel(self.getReceivingResponsePacket());
+                    self.setReceivingResponsePacket(null);
+                }
             }
         }
     }

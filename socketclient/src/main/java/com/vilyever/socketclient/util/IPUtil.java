@@ -19,7 +19,7 @@ public class IPUtil {
     
     
     /* Public Methods */
-    public static String getIPAddress(boolean useIPv4) {
+    public static String getLocalIPAddress(boolean useIPv4) {
         try {
             List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
             for (NetworkInterface networkInterface : interfaces) {

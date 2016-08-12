@@ -1,6 +1,6 @@
 package com.vilyever.socketclient.helper;
 
-import com.vilyever.socketclient.util.CharsetUtil;
+import java.util.Arrays;
 
 /**
  * SocketPacketHelper
@@ -10,98 +10,126 @@ import com.vilyever.socketclient.util.CharsetUtil;
 public class SocketPacketHelper {
     final SocketPacketHelper self = this;
 
-    public static final int SegmentLengthMax = -1;
-    
+
     /* Constructors */
-    public SocketPacketHelper(String charsetName) {
-        this.charsetName = charsetName;
-    }
-    
-    /* Public Methods */
-    public SocketPacketHelper setSendHeaderString(String message) {
-        if (message == null) {
-            setSendHeaderData(null);
-        }
-        else {
-            setSendHeaderData(CharsetUtil.stringToData(message, getCharsetName()));
-        }
-        return this;
-    }
-
-    public SocketPacketHelper setSendTrailerString(String message) {
-        if (message == null) {
-            setSendTrailerData(null);
-        }
-        else {
-            setSendTrailerData(CharsetUtil.stringToData(message, getCharsetName()));
-        }
-        return this;
-    }
-
-    public SocketPacketHelper setReceiveHeaderString(String message) {
-        if (message == null) {
-            setReceiveHeaderData(null);
-        }
-        else {
-            setReceiveHeaderData(CharsetUtil.stringToData(message, getCharsetName()));
-        }
-        return this;
-    }
-
-    public SocketPacketHelper setReceiveTrailerString(String message) {
-        if (message == null) {
-            setReceiveTrailerData(null);
-        }
-        else {
-            setReceiveTrailerData(CharsetUtil.stringToData(message, getCharsetName()));
-        }
-        return this;
+    public SocketPacketHelper() {
     }
 
     public SocketPacketHelper copy() {
-        SocketPacketHelper helper = new SocketPacketHelper(getCharsetName());
+        SocketPacketHelper helper = new SocketPacketHelper();
+        helper.setOriginal(this);
+
         helper.setSendHeaderData(getSendHeaderData());
+        helper.setSendPacketLengthDataConvertor(getSendPacketLengthDataConvertor());
         helper.setSendTrailerData(getSendTrailerData());
+        helper.setSendSegmentLength(getSendSegmentLength());
+        helper.setSendSegmentEnabled(isSendSegmentEnabled());
+
+        helper.setReadStrategy(getReadStrategy());
+
         helper.setReceiveHeaderData(getReceiveHeaderData());
+        helper.setReceivePacketLengthDataLength(getReceivePacketLengthDataLength());
+        helper.setReceivePacketDataLengthConvertor(getReceivePacketDataLengthConvertor());
         helper.setReceiveTrailerData(getReceiveTrailerData());
-        helper.setSegmentLength(getSegmentLength());
+        helper.setReceiveSegmentLength(getReceiveSegmentLength());
+        helper.setReceiveSegmentEnabled(isReceiveSegmentEnabled());
 
         return helper;
     }
 
+    /* Public Methods */
+    public void checkValidation() {
+        switch (getReadStrategy()) {
+            case Manually:
+                return;
+            case AutoReadToTrailer:
+                if (getReceiveTrailerData() == null
+                        || getReceiveTrailerData().length <= 0) {
+                    throw new IllegalArgumentException("we need ReceiveTrailerData for AutoReadToTrailer");
+                }
+                return;
+            case AutoReadByLength:
+                if (getReceivePacketLengthDataLength() <= 0
+                        || getReceivePacketDataLengthConvertor() == null) {
+                    throw new IllegalArgumentException("we need ReceivePacketLengthDataLength and ReceivePacketDataLengthConvertor for AutoReadByLength");
+                }
+                return;
+        }
+
+        throw new IllegalArgumentException("we need a correct ReadStrategy");
+    }
+
+    public byte[] getSendPacketLengthData(int packetLength) {
+        if (getSendPacketLengthDataConvertor() != null) {
+            return getSendPacketLengthDataConvertor().obtainSendPacketLengthDataForPacketLength(getOriginal(), packetLength);
+        }
+
+        return null;
+    }
+
+    public int getReceivePacketDataLength(byte[] packetLengthData) {
+        if (getReadStrategy() == ReadStrategy.AutoReadByLength) {
+            if (getReceivePacketDataLengthConvertor() != null) {
+                return getReceivePacketDataLengthConvertor().obtainReceivePacketDataLength(getOriginal(), packetLengthData);
+            }
+        }
+
+        return 0;
+    }
+
     /* Properties */
-    private String charsetName;
-    public SocketPacketHelper setCharsetName(String charsetName) {
-        this.charsetName = charsetName;
+    private SocketPacketHelper original;
+    protected SocketPacketHelper setOriginal(SocketPacketHelper original) {
+        this.original = original;
         return this;
     }
-    public String getCharsetName() {
-        return this.charsetName;
+    public SocketPacketHelper getOriginal() {
+        if (this.original == null) {
+            return this;
+        }
+        return this.original;
     }
 
     /**
-     * 发送消息时自动添加的头部
-     * 用于解决分包
+     * 发送消息时自动添加的包头
      */
     private byte[] sendHeaderData;
     public SocketPacketHelper setSendHeaderData(byte[] sendHeaderData) {
-        this.sendHeaderData = sendHeaderData;
+        if (sendHeaderData != null) {
+            this.sendHeaderData = Arrays.copyOf(sendHeaderData, sendHeaderData.length);
+        }
+        else {
+            this.sendHeaderData = null;
+        }
         return this;
     }
     public byte[] getSendHeaderData() {
-//        if (getSendTrailerData() == null) {
-//            return null;
-//        }
         return this.sendHeaderData;
+    }
+    
+    private SendPacketLengthDataConvertor sendPacketLengthDataConvertor;
+    public SocketPacketHelper setSendPacketLengthDataConvertor(SendPacketLengthDataConvertor sendPacketLengthDataConvertor) {
+        this.sendPacketLengthDataConvertor = sendPacketLengthDataConvertor;
+        return this;
+    }
+    public SendPacketLengthDataConvertor getSendPacketLengthDataConvertor() {
+        return this.sendPacketLengthDataConvertor;
+    }
+    public interface SendPacketLengthDataConvertor {
+        byte[] obtainSendPacketLengthDataForPacketLength(SocketPacketHelper helper, int packetLength);
     }
 
     /**
-     * 发送消息时自动添加的尾部信息
-     * 可设为换行符，远程端即可readLine
+     * 发送消息时自动添加的包尾
      */
     private byte[] sendTrailerData;
     public SocketPacketHelper setSendTrailerData(byte[] sendTrailerData) {
-        this.sendTrailerData = sendTrailerData;
+        if (sendTrailerData != null) {
+            this.sendTrailerData = Arrays.copyOf(sendTrailerData, sendTrailerData.length);
+        }
+        else {
+            this.sendTrailerData = null;
+        }
         return this; 
     }
     public byte[] getSendTrailerData() {
@@ -109,30 +137,117 @@ public class SocketPacketHelper {
     }
 
     /**
+     * 发送消息时分段发送的每段大小
+     * 分段发送可以回调进度
+     * 此数值表示每次发送byte的长度
+     * 不大于0表示不分段
+     */
+    private int sendSegmentLength;
+    public SocketPacketHelper setSendSegmentLength(int sendSegmentLength) {
+        this.sendSegmentLength = sendSegmentLength;
+        return this;
+    }
+    public int getSendSegmentLength() {
+        return this.sendSegmentLength;
+    }
+
+    /**
+     * 若sendSegmentLength不大于0，返回false
+     */
+    private boolean sendSegmentEnabled;
+    public SocketPacketHelper setSendSegmentEnabled(boolean sendSegmentEnabled) {
+        this.sendSegmentEnabled = sendSegmentEnabled;
+        return this;
+    }
+    public boolean isSendSegmentEnabled() {
+        if (getSendSegmentLength() <= 0) {
+            return false;
+        }
+        return this.sendSegmentEnabled;
+    }
+
+    private ReadStrategy readStrategy = ReadStrategy.Manually;
+    public SocketPacketHelper setReadStrategy(ReadStrategy readStrategy) {
+        this.readStrategy = readStrategy;
+        return this;
+    }
+    public ReadStrategy getReadStrategy() {
+        return this.readStrategy;
+    }
+    public enum ReadStrategy {
+        /**
+         * 手动读取
+         * 手动调用{@link com.vilyever.socketclient.SocketClient#readDataToData(byte[])}或{@link com.vilyever.socketclient.SocketClient#readDataToLength(int)}读取
+         */
+        Manually,
+        /**
+         * 自动读取到包尾
+         * 需设置包尾相关信息
+         * 自动读取信息直到读取到与包尾相同的数据后，回调接收包
+         */
+        AutoReadToTrailer,
+        /**
+         * 自动按长度读取
+         * 需设置长度相关信息
+         * 自动读取包长度信息，转换成包长度后读取该长度字节后，回调接收包
+         */
+        AutoReadByLength,
+    }
+
+    /**
      * 接收消息时每一条消息的头部信息
      * 若不为null，每一条接收消息都必须带有此头部信息，否则将无法读取
-     * 回调消息时将会自动去除此信息
      */
     private byte[] receiveHeaderData;
     public SocketPacketHelper setReceiveHeaderData(byte[] receiveHeaderData) {
-        this.receiveHeaderData = receiveHeaderData;
+        if (receiveHeaderData != null) {
+            this.receiveHeaderData = Arrays.copyOf(receiveHeaderData, receiveHeaderData.length);
+        }
+        else {
+            this.receiveHeaderData = null;
+        }
         return this;
     }
     public byte[] getReceiveHeaderData() {
-//        if (getReceiveTrailerData() == null) {
-//            return null;
-//        }
         return this.receiveHeaderData;
+    }
+
+    /**
+     * 接收时，包长度data的固定字节数
+     */
+    private int receivePacketLengthDataLength;
+    public SocketPacketHelper setReceivePacketLengthDataLength(int receivePacketLengthDataLength) {
+        this.receivePacketLengthDataLength = receivePacketLengthDataLength;
+        return this;
+    }
+    public int getReceivePacketLengthDataLength() {
+        return this.receivePacketLengthDataLength;
+    }
+
+    private ReceivePacketDataLengthConvertor receivePacketDataLengthConvertor;
+    public SocketPacketHelper setReceivePacketDataLengthConvertor(ReceivePacketDataLengthConvertor receivePacketDataLengthConvertor) {
+        this.receivePacketDataLengthConvertor = receivePacketDataLengthConvertor;
+        return this;
+    }
+    public ReceivePacketDataLengthConvertor getReceivePacketDataLengthConvertor() {
+        return this.receivePacketDataLengthConvertor;
+    }
+    public interface ReceivePacketDataLengthConvertor {
+        int obtainReceivePacketDataLength(SocketPacketHelper helper, byte[] packetLengthData);
     }
 
     /**
      * 接收消息时每一条消息的尾部信息
      * 若不为null，每一条接收消息都必须带有此尾部信息，否则将与下一次输入流合并
-     * 回调消息时将会自动去除此信息
      */
     private byte[] receiveTrailerData;
     public SocketPacketHelper setReceiveTrailerData(byte[] receiveTrailerData) {
-        this.receiveTrailerData = receiveTrailerData;
+        if (receiveTrailerData != null) {
+            this.receiveTrailerData = Arrays.copyOf(receiveTrailerData, receiveTrailerData.length);
+        }
+        else {
+            this.receiveTrailerData = null;
+        }
         return this;
     }
     public byte[] getReceiveTrailerData() {
@@ -140,24 +255,32 @@ public class SocketPacketHelper {
     }
 
     /**
-     * 发送消息时分段发送的每段大小
-     * 分段发送可以回调进度
-     * 此数值表示每次发送byte的长度
-     * -1表示不分段
+     * 分段接收消息，每段长度，仅在按长度读取时有效
+     * 若设置大于0时，receiveSegmentEnabled自动变更为true，反之亦然
+     * 设置后可手动变更receiveSegmentEnabled
      */
-    private int segmentLength = SegmentLengthMax;
-    public SocketPacketHelper setSegmentLength(int segmentLength) {
-        this.segmentLength = segmentLength;
+    private int receiveSegmentLength;
+    public SocketPacketHelper setReceiveSegmentLength(int receiveSegmentLength) {
+        this.receiveSegmentLength = receiveSegmentLength;
         return this;
     }
-    public int getSegmentLength() {
-        if (this.segmentLength <= 0) {
-            this.segmentLength = SegmentLengthMax;
+    public int getReceiveSegmentLength() {
+        return this.receiveSegmentLength;
+    }
+
+    /**
+     * 若receiveSegmentLength不大于0，返回false
+     */
+    private boolean receiveSegmentEnabled;
+    public SocketPacketHelper setReceiveSegmentEnabled(boolean receiveSegmentEnabled) {
+        this.receiveSegmentEnabled = receiveSegmentEnabled;
+        return this;
+    }
+    public boolean isReceiveSegmentEnabled() {
+        if (getReceiveSegmentLength() <= 0) {
+            return false;
         }
-//        if (getSendTrailerData() == null) {
-//            return SegmentLengthMax;
-//        }
-        return this.segmentLength;
+        return this.receiveSegmentEnabled;
     }
 
     /* Overrides */

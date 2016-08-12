@@ -1,7 +1,5 @@
 package com.vilyever.socketclient.helper;
 
-import com.vilyever.socketclient.util.CharsetUtil;
-
 /**
  * SocketConfigure
  * Created by vilyever on 2016/5/31.
@@ -24,10 +22,16 @@ public class SocketConfigure {
         return this;
     }
     public String getCharsetName() {
-        if (this.charsetName == null) {
-            this.charsetName = CharsetUtil.UTF_8;
-        }
         return this.charsetName;
+    }
+
+    private SocketClientAddress address;
+    public SocketConfigure setAddress(SocketClientAddress address) {
+        this.address = address.copy();
+        return this;
+    }
+    public SocketClientAddress getAddress() {
+        return this.address;
     }
 
     private SocketPacketHelper socketPacketHelper;
@@ -39,12 +43,12 @@ public class SocketConfigure {
         return this.socketPacketHelper;
     }
 
-    private HeartBeatHelper heartBeatHelper;
-    public SocketConfigure setHeartBeatHelper(HeartBeatHelper heartBeatHelper) {
+    private SocketHeartBeatHelper heartBeatHelper;
+    public SocketConfigure setHeartBeatHelper(SocketHeartBeatHelper heartBeatHelper) {
         this.heartBeatHelper = heartBeatHelper.copy();
         return this;
     }
-    public HeartBeatHelper getHeartBeatHelper() {
+    public SocketHeartBeatHelper getHeartBeatHelper() {
         return this.heartBeatHelper;
     }
     

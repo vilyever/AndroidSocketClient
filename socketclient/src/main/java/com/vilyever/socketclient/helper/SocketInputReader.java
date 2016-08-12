@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 
 /**
@@ -46,89 +45,72 @@ public class SocketInputReader extends Reader {
         throw new IOException("read() is not support for SocketInputReader, try readBytes().");
     }
 
-    public byte[] readBytes(byte[] header, byte[] trailer) throws IOException {
+    public byte[] readToLength(int length) throws IOException {
+        if (length <= 0) {
+            return null;
+        }
+
         synchronized (lock) {
-            if (!internalIsOpen()) {
+            if (!__i__isOpen()) {
+                throw new IOException("InputStreamReader is closed");
+            }
+
+            try {
+                byte[] buffer = new byte[length];
+                int index = 0;
+                int c;
+
+                while (-1 != (c = this.inputStream.read())) {
+                    if (index < length) {
+                        buffer[index++] = (byte) c;
+                    }
+
+                    if (index >= length) {
+                        break;
+                    }
+                }
+
+                if (index != length) {
+                    return null;
+                }
+
+                return buffer;
+            }
+            catch (IOException e) {
+                return null;
+            }
+        }
+    }
+
+    public byte[] readToData(byte[] data) throws IOException {
+        if (data == null
+                || data.length <= 0) {
+            return null;
+        }
+
+        synchronized (lock) {
+            if (!__i__isOpen()) {
                 throw new IOException("InputStreamReader is closed");
             }
 
             try {
                 ArrayList<Byte> list = new ArrayList<>();
                 int c;
-                boolean readOver = false;
 
-                int headerCount = header == null ? 0 : header.length;
-                int trailerCount = trailer == null ? 0 : trailer.length;
-                boolean isHeaderMatched = false;
-                int matchHeaderIndex = 0;
-                int matchTrailerIndex = 0;
-
-                byte[] tryRemovedTrailer = new byte[trailerCount];
+                int matchIndex = 0;
 
                 while (-1 != (c = this.inputStream.read())) {
-                    if (header != null) {
-                        if (matchHeaderIndex < headerCount) {
-                            if (header[matchHeaderIndex] == c) {
-                                matchHeaderIndex++;
-
-                                if (matchHeaderIndex == headerCount) {
-                                    if (isHeaderMatched && Arrays.equals(header, trailer)) {
-                                        readOver = true;
-                                        break;
-                                    }
-                                    isHeaderMatched = true;
-                                    list.clear();
-                                    matchHeaderIndex = 0;
-                                    continue;
-                                }
-                                else {
-                                    if (!isHeaderMatched) {
-                                        continue;
-                                    }
-                                }
-                            }
-                            else {
-                                matchHeaderIndex = 0;
-
-                                if (!isHeaderMatched) {
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-
-                    if (trailer != null) {
-                        if (matchTrailerIndex < trailerCount) {
-                            if (trailer[matchTrailerIndex] == c) {
-                                tryRemovedTrailer[matchTrailerIndex] = (byte) c;
-                                matchTrailerIndex++;
-
-                                if (matchTrailerIndex == trailerCount) {
-                                    readOver = true;
-                                    break;
-                                }
-                            }
-                            else {
-                                for (int i = 0; i < matchTrailerIndex; i++) {
-                                    list.add(tryRemovedTrailer[i]);
-                                }
-                                matchTrailerIndex = 0;
-
-                                list.add((byte) c);
-                            }
-                        }
+                    list.add((byte) c);
+                    if (c == data[matchIndex]) {
+                        matchIndex++;
                     }
                     else {
-                        list.add((byte) c);
-                        if (this.inputStream.available() == 0) {
-                            readOver = true;
-                            break;
-                        }
+                        matchIndex = 0;
                     }
-                }
 
-                if (!readOver) {
-                    return null;
+                    if (matchIndex == data.length) {
+                        break;
+                    }
                 }
 
                 if (list.size() == 0) {
@@ -167,14 +149,14 @@ public class SocketInputReader extends Reader {
      
      
     /* Private Methods */
-    public static void internalCheckOffsetAndCount(int arrayLength, int offset, int count) {
+    public static void __i__checkOffsetAndCount(int arrayLength, int offset, int count) {
         if ((offset | count) < 0 || offset > arrayLength || arrayLength - offset < count) {
             throw new ArrayIndexOutOfBoundsException("arrayLength=" + arrayLength + "; offset=" + offset
                                                      + "; count=" + count);
         }
     }
 
-    private boolean internalIsOpen() {
+    private boolean __i__isOpen() {
         return this.inputStream != null;
     }
 }

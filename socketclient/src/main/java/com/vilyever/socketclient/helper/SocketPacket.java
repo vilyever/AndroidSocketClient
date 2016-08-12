@@ -1,5 +1,7 @@
 package com.vilyever.socketclient.helper;
 
+import com.vilyever.socketclient.util.CharsetUtil;
+
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -16,30 +18,26 @@ public class SocketPacket {
 
     /* Constructors */
     public SocketPacket(byte[] data) {
+        this(data, false);
+    }
+
+    public SocketPacket(byte[] data, boolean isHeartBeat) {
         this.ID = IDAtomic.getAndIncrement();
         this.data = Arrays.copyOf(data, data.length);
-        this.message = null;
+        this.heartBeat = isHeartBeat;
     }
 
     public SocketPacket(String message) {
         this.ID = IDAtomic.getAndIncrement();
         this.message = message;
-        this.data = null;
-    }
-
-    public static SocketPacket newInstanceWithBytes(byte[] data) {
-        return newInstanceWithData(data);
-    }
-
-    public static SocketPacket newInstanceWithData(byte[] data) {
-        return new SocketPacket(data);
-    }
-
-    public static SocketPacket newInstanceWithString(String message) {
-        return new SocketPacket(message);
     }
 
     /* Public Methods */
+    public void buildDataWithCharsetName(String charsetName) {
+        if (getMessage() != null) {
+            this.data = CharsetUtil.stringToData(getMessage(), charsetName);
+        }
+    }
 
     /* Properties */
     /**
@@ -51,36 +49,50 @@ public class SocketPacket {
     }
 
     /**
-     * string data
-     */
-    private final String message;
-    public String getMessage() {
-        return this.message;
-    }
-
-    /**
      * bytes data
      */
-    private final byte[] data;
+    private byte[] data;
     public byte[] getData() {
         return this.data;
     }
 
-    private boolean canceled;
-    public SocketPacket setCanceled(boolean canceled) {
-        this.canceled = canceled;
-        return this;
-    }
-    public boolean isCanceled() {
-        return this.canceled;
+    /**
+     * string data
+     */
+    private String message;
+    public String getMessage() {
+        return this.message;
     }
 
-    private float sendingProgress;
-    public SocketPacket setSendingProgress(float sendingProgress) {
-        this.sendingProgress = sendingProgress;
+    private boolean heartBeat;
+    public boolean isHeartBeat() {
+        return this.heartBeat;
+    }
+
+    private byte[] headerData;
+    public SocketPacket setHeaderData(byte[] headerData) {
+        this.headerData = headerData;
         return this;
     }
-    public float getSendingProgress() {
-        return this.sendingProgress;
+    public byte[] getHeaderData() {
+        return this.headerData;
+    }
+
+    private byte[] packetLengthData;
+    public SocketPacket setPacketLengthData(byte[] packetLengthData) {
+        this.packetLengthData = packetLengthData;
+        return this;
+    }
+    public byte[] getPacketLengthData() {
+        return this.packetLengthData;
+    }
+
+    private byte[] trailerData;
+    public SocketPacket setTrailerData(byte[] trailerData) {
+        this.trailerData = trailerData;
+        return this;
+    }
+    public byte[] getTrailerData() {
+        return this.trailerData;
     }
 }

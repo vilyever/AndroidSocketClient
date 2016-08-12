@@ -1,6 +1,5 @@
 package com.vilyever.socketclient.server;
 
-import android.os.Looper;
 import android.support.annotation.NonNull;
 
 import com.vilyever.socketclient.SocketClient;
@@ -21,18 +20,12 @@ public class SocketServerClient extends SocketClient {
 
     /* Constructors */
     public SocketServerClient(@NonNull Socket socket, SocketConfigure configure) {
-        super(new SocketClientAddress(socket.getLocalAddress().toString().substring(1), socket.getLocalPort()));
+        super(new SocketClientAddress(socket.getLocalAddress().toString().substring(1), "" + socket.getLocalPort()));
 
         setRunningSocket(socket);
-        getSocketConfigure().setCharsetName(configure.getCharsetName()).setHeartBeatHelper(configure.getHeartBeatHelper()).setSocketPacketHelper(configure.getSocketPacketHelper());
+        getSocketConfigure().setCharsetName(configure.getCharsetName()).setAddress(getAddress()).setHeartBeatHelper(configure.getHeartBeatHelper()).setSocketPacketHelper(configure.getSocketPacketHelper());
 
-        // 此构造通常于后台线程调用，通过UIHandler确保onConnected在主线程调用
-        if (Looper.getMainLooper().getThread() != Thread.currentThread()) {
-            getUiHandler().sendEmptyMessage(UIHandler.MessageType.Connected.what());
-        }
-        else {
-            internalOnConnected();
-        }
+        internalOnConnected();
     }
 
     /* Public Methods */
