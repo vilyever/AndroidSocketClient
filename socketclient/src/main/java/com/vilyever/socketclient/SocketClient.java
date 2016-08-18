@@ -117,7 +117,7 @@ public class SocketClient {
         return packet;
     }
 
-    public SocketPacket sendPacket(SocketPacket packet) {
+    public SocketPacket sendPacket(final SocketPacket packet) {
         if (!isConnected()) {
             return null;
         }
@@ -126,28 +126,29 @@ public class SocketClient {
             return null;
         }
 
-        __i__enqueueNewPacket(packet);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                self.__i__enqueueNewPacket(packet);
+            }
+        }).start();
+
         return packet;
     }
 
     public void cancelSend(final SocketPacket packet) {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    self.cancelSend(packet);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (getSendingPacketQueue()) {
+                    if (self.getSendingPacketQueue().contains(packet)) {
+                        self.getSendingPacketQueue().remove(packet);
+
+                        self.__i__onSendPacketCancel(packet);
+                    }
                 }
-            }).start();
-            return;
-        }
-
-        synchronized (getSendingPacketQueue()) {
-            if (getSendingPacketQueue().contains(packet)) {
-                getSendingPacketQueue().remove(packet);
-
-                __i__onSendPacketCancel(packet);
             }
-        }
+        }).start();
     }
 
     public SocketResponsePacket readDataToLength(final int length) {
@@ -438,7 +439,12 @@ public class SocketClient {
             this.hearBeatCountDownTimer = new CountDownTimer(Long.MAX_VALUE, 1000L) {
                 @Override
                 public void onTick(long millisUntilFinished) {
-                    self.__i__onTimeTick();
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            self.__i__onTimeTick();
+                        }
+                    });
                 }
 
                 @Override
@@ -486,6 +492,15 @@ public class SocketClient {
         return this.sendingPacket;
     }
 
+    private long lastSendProgressCallbackTime;
+    protected SocketClient setLastSendProgressCallbackTime(long lastSendProgressCallbackTime) {
+        this.lastSendProgressCallbackTime = lastSendProgressCallbackTime;
+        return this;
+    }
+    protected long getLastSendProgressCallbackTime() {
+        return this.lastSendProgressCallbackTime;
+    }
+
     private SocketResponsePacket receivingResponsePacket;
     protected SocketClient setReceivingResponsePacket(SocketResponsePacket receivingResponsePacket) {
         this.receivingResponsePacket = receivingResponsePacket;
@@ -493,6 +508,15 @@ public class SocketClient {
     }
     protected SocketResponsePacket getReceivingResponsePacket() {
         return this.receivingResponsePacket;
+    }
+
+    private long lastReceiveProgressCallbackTime;
+    protected SocketClient setLastReceiveProgressCallbackTime(long lastReceiveProgressCallbackTime) {
+        this.lastReceiveProgressCallbackTime = lastReceiveProgressCallbackTime;
+        return this;
+    }
+    protected long getLastReceiveProgressCallbackTime() {
+        return this.lastReceiveProgressCallbackTime;
     }
 
     private ConnectionThread connectionThread;
@@ -611,16 +635,6 @@ public class SocketClient {
 
     /* Private Methods */
     private void __i__enqueueNewPacket(final SocketPacket packet) {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    self.__i__enqueueNewPacket(packet);
-                }
-            }).start();
-            return;
-        }
-
         if (!isConnected()) {
             return;
         }
@@ -651,16 +665,6 @@ public class SocketClient {
     }
 
     private void __i__onConnected() {
-        if (Looper.myLooper() != Looper.getMainLooper()) {
-            getUiHandler().post(new Runnable() {
-                @Override
-                public void run() {
-                    self.__i__onConnected();
-                }
-            });
-            return;
-        }
-
         ArrayList<SocketClientDelegate> delegatesCopy =
                 (ArrayList<SocketClientDelegate>) getSocketClientDelegates().clone();
         int count = delegatesCopy.size();
@@ -674,16 +678,6 @@ public class SocketClient {
     }
 
     private void __i__onDisconnected() {
-        if (Looper.myLooper() != Looper.getMainLooper()) {
-            getUiHandler().post(new Runnable() {
-                @Override
-                public void run() {
-                    self.__i__onDisconnected();
-                }
-            });
-            return;
-        }
-
         ArrayList<SocketClientDelegate> delegatesCopy =
                 (ArrayList<SocketClientDelegate>) getSocketClientDelegates().clone();
         int count = delegatesCopy.size();
@@ -779,6 +773,12 @@ public class SocketClient {
     }
 
     private void __i__onSendingPacketInProgress(final SocketPacket packet, final int sendedLength, final int headerLength, final int packetLengthDataLength, final int dataLength, final int trailerLength) {
+
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - getLastSendProgressCallbackTime() < (1000 / 24)) {
+            return;
+        }
+
         if (Looper.myLooper() != Looper.getMainLooper()) {
             getUiHandler().post(new Runnable() {
                 @Override
@@ -799,6 +799,8 @@ public class SocketClient {
                 delegatesCopy.get(i).onSendingPacketInProgress(this, packet, progress, sendedLength);
             }
         }
+
+        setLastSendProgressCallbackTime(System.currentTimeMillis());
     }
 
     private void __i__onReceivePacketBegin(final SocketResponsePacket packet) {
@@ -865,6 +867,12 @@ public class SocketClient {
     }
 
     private void __i__onReceivingPacketInProgress(final SocketResponsePacket packet, final int receivedLength, final int headerLength, final int packetLengthDataLength, final int dataLength, final int trailerLength) {
+
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - getLastReceiveProgressCallbackTime() < (1000 / 24)) {
+            return;
+        }
+
         if (Looper.myLooper() != Looper.getMainLooper()) {
             getUiHandler().post(new Runnable() {
                 @Override
@@ -885,6 +893,8 @@ public class SocketClient {
                 delegatesCopy.get(i).onReceivingPacketInProgress(this, packet, progress, receivedLength);
             }
         }
+
+        setLastReceiveProgressCallbackTime(System.currentTimeMillis());
     }
 
     private void __i__onTimeTick() {
@@ -937,7 +947,12 @@ public class SocketClient {
                 self.setSendingPacket(null);
                 self.setReceivingResponsePacket(null);
 
-                self.__i__onConnected();
+                self.getUiHandler().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        self.__i__onConnected();
+                    }
+                });
             }
             catch (IOException e) {
                 e.printStackTrace();
@@ -1009,7 +1024,13 @@ public class SocketClient {
             }
 
             self.setDisconnectionThread(null);
-            self.__i__onDisconnected();
+
+            self.getUiHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    self.__i__onDisconnected();
+                }
+            });
         }
     }
 

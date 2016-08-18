@@ -1,6 +1,7 @@
 package com.vilyever.androidsocketclient;
 
 import android.support.annotation.NonNull;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 
 import com.vilyever.logger.Logger;
@@ -38,7 +39,10 @@ public class TestClient {
     private SocketClient localSocketClient;
     public SocketClient getLocalSocketClient() {
         if (this.localSocketClient == null) {
-            this.localSocketClient = new SocketClient(new SocketClientAddress(IPUtil.getLocalIPAddress(true), "21998"));
+            this.localSocketClient = new SocketClient();
+            this.localSocketClient.getAddress().setRemoteIP("");
+            this.localSocketClient.getAddress().setRemotePort("");
+            this.localSocketClient.getAddress().setConnectionTimeout("");
             this.localSocketClient.setCharsetName(CharsetUtil.UTF_8);
 
             this.localSocketClient.getSocketPacketHelper().setSendHeaderData(CharsetUtil.stringToData("Local:", CharsetUtil.UTF_8));
@@ -133,5 +137,67 @@ public class TestClient {
     
     
     /* Private Methods */
-    
+    private void __i__setupAddress(SocketClient socketClient) {
+        socketClient.getAddress().setRemoteIP(IPUtil.getLocalIPAddress(true));
+        socketClient.getAddress().setRemotePort("21998");
+        socketClient.getAddress().setConnectionTimeout(30 * 1000);
+    }
+
+    private void __i__setupEncoding(SocketClient socketClient) {
+        socketClient.setCharsetName(CharsetUtil.UTF_8);
+    }
+
+    private void __i__setupSendHeader(SocketClient socketClient) {
+        socketClient.getSocketPacketHelper().setSendHeaderData(CharsetUtil.stringToData("Local:", CharsetUtil.UTF_8));
+    }
+
+    private void __i__setupSendTrailer(SocketClient socketClient) {
+        socketClient.getSocketPacketHelper().setSendTrailerData(new byte[]{0x13, 0x10});
+    }
+
+    private void __i__setupSendSegment(SocketClient socketClient) {
+        socketClient.getSocketPacketHelper().setSendSegmentLength(8);
+        socketClient.getSocketPacketHelper().setSendSegmentEnabled(true);
+    }
+
+
+    private void __i__setupSendLength(SocketClient socketClient) {
+        socketClient.getSocketPacketHelper().setSendPacketLengthDataConvertor(new SocketPacketHelper.SendPacketLengthDataConvertor() {
+            @Override
+            public byte[] obtainSendPacketLengthDataForPacketLength(SocketPacketHelper helper, int packetLength) {
+                byte[] ret = new byte[4];
+                ret[3] = (byte) (packetLength & 0xFF);
+                ret[2] = (byte) ((packetLength >> 8) & 0xFF);
+                ret[1] = (byte) ((packetLength >> 16) & 0xFF);
+                ret[0] = (byte) ((packetLength >> 24) & 0xFF);
+                return ret;
+            }
+        });
+    }
+
+    private void __i__setupReceiveHeader(SocketClient socketClient) {
+        socketClient.getSocketPacketHelper().setReceiveHeaderData(CharsetUtil.stringToData("Server:", CharsetUtil.UTF_8));
+    }
+
+    private void __i__setupReceiveByTrailer(SocketClient socketClient) {
+        socketClient.getSocketPacketHelper().setReadStrategy(SocketPacketHelper.ReadStrategy.AutoReadToTrailer);
+        socketClient.getSocketPacketHelper().setReceiveTrailerData(new byte[]{0x13, 0x10});
+    }
+
+    private void __i__setupReceiveByLength(SocketClient socketClient) {
+        socketClient.getSocketPacketHelper().setReadStrategy(SocketPacketHelper.ReadStrategy.AutoReadByLength);
+        socketClient.getSocketPacketHelper().setReceivePacketLengthDataLength(4);
+        socketClient.getSocketPacketHelper().setReceivePacketDataLengthConvertor(new SocketPacketHelper.ReceivePacketDataLengthConvertor() {
+            @Override
+            public int obtainReceivePacketDataLength(SocketPacketHelper helper, byte[] packetLengthData) {
+                int length =  (packetLengthData[3] & 0xFF) + ((packetLengthData[2] & 0xFF) << 8) + ((packetLengthData[1] & 0xFF) << 16) + ((packetLengthData[0] & 0xFF) << 24);
+
+                return length;
+            }
+        });
+    }
+
+    private void __i__setupReceiveByManually(SocketClient socketClient) {
+        socketClient.getSocketPacketHelper().setReadStrategy(SocketPacketHelper.ReadStrategy.Manually);
+    }
 }

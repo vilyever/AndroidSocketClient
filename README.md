@@ -22,57 +22,56 @@ dependencies {
 ```
 
 ## Updates
-* 2.0.0
+* 3.0.0
 </br>
-重构，移除了一些方法，解耦一些设置，变更比较大
+支持ReadToData和ReadToLength自动读取一下两种结构
 </br>
-增加发送消息时自动发送包头包尾信息用于粘包和分包
+常见包结构1：【包头（可选）】【正文】【包尾】
 </br>
-增加接收消息时自动依据设置的包头包尾分割消息
-</br>
-增加发送消息状态回调，增加分段发送设置，可查看发送单个包的发送进度
-
-* 1.5.0
-</br>
-重构
-</br>
-抽离心跳包设置到HeartBeatHelper类中
-</br>
-抽离包尾判断到SocketPacketHelper类中
-
-* 1.4.1
-</br>
-增加禁用心跳包和超时自动断开
-</br>
-SocketClient.disableHeartBeat();(设置heartBeatMessage为null效果相同）
-</br>
-SocketClient.disableRemoteNoReplyAliveTimeout();
-
-* 1.4.0
-</br>
-将发送和接收时对String和byte数组的转换移到后台线程进行
-
-* 1.3.4
-</br>
-修复SocketServer停止监听时未将已连接的client断开问题
-</br>
-心跳包修改为可发送byte数组
-</br>
-自动应答集成一个帮助类
-
-* 1.3.3
-</br>
-修复SocketServer启动监听回调时机问题
-
-* 1.3.0
-</br>
-修改消息收发机制
-</br>
-接收消息回调参数由String改为SocketResponsePacket，提供byte[]数据
-</br>
-获取String消息调用SocketResponsePacket.getMessage()实时获取
+常见包结构2：【包头（可选）】【余下包长度（正文加包尾长度）（此部分也可做包头）（此部分长度固定）】【正文】【包尾（可选）】
 
 ## Usage
+### 基本配置
+```java
+// 设置ip端口，连接超时时长
+SocketClient socketClient = new SocketClient(new SocketClientAddress("127.0.0.1", "21998", 15 * 1000));
+
+// 设置发送和接收String消息的默认编码，若为空无法发送string类型的信息，若不为空在接收时将自动尝试转换byte[]为string
+socketClient.setCharsetName("UTF-8");
+```
+
+### 发送配置
+```java
+// 设置自动发送的包头信息
+socketClient.getSocketPacketHelper().setSendHeaderData(CharsetUtil.stringToData("Header:", "UTF-8"));
+
+// 设置自动发送的包尾信息
+socketClient.getSocketPacketHelper().setSendTrailerData(new byte[]{0x13, 0x10});
+
+// 设置将（包正文与包尾长度之和）转换为byte[]的转换器，此部分由通信双方自定义协议
+socketClient.getSocketPacketHelper().setSendPacketLengthDataConvertor(new SocketPacketHelper.SendPacketLengthDataConvertor() {
+    @Override
+    public byte[] obtainSendPacketLengthDataForPacketLength(SocketPacketHelper helper, int packetLength) {
+        byte[] data = new byte[4];
+        data[3] = (byte) (packetLength & 0xFF);
+        data[2] = (byte) ((packetLength >> 8) & 0xFF);
+        data[1] = (byte) ((packetLength >> 16) & 0xFF);
+        data[0] = (byte) ((packetLength >> 24) & 0xFF);
+        return data;
+    }
+});
+
+// 设置发送正文的分段长度，用于回调显示进度
+socketClient.getSocketPacketHelper().setSendSegmentLength(1);
+
+// 设置是否分段发送正文
+socketClient.getSocketPacketHelper().setSendSegmentEnabled(true);
+```
+
+### 接收配置
+```java
+```
+
 ```java
 
 SocketClient socketClient = new SocketClient(new SocketClientAddress("192.168.1.1", 80, 15 * 1000)); // 设置ip端口，连接超时时长

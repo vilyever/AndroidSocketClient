@@ -19,6 +19,15 @@ public class SocketClientAddress {
         this(null, null);
     }
 
+
+    public SocketClientAddress(String remoteIP, int remotePort) {
+        this(remoteIP, "" + remotePort);
+    }
+
+    public SocketClientAddress(String remoteIP, int remotePort, int connectionTimeout) {
+        this(remoteIP, "" + remotePort, connectionTimeout);
+    }
+
     public SocketClientAddress(String remoteIP, String remotePort) {
         this(remoteIP, remotePort, DefaultConnectionTimeout);
     }
