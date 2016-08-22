@@ -27,9 +27,6 @@ public class SocketHeartBeatHelper {
         helper.setHeartBeatInterval(getHeartBeatInterval());
         helper.setSendHeartBeatEnabled(isSendHeartBeatEnabled());
 
-        helper.setRemoteNoReplyAliveTimeout(getRemoteNoReplyAliveTimeout());
-        helper.setAutoDisconnectOnRemoteNoReplyAliveTimeout(isAutoDisconnectOnRemoteNoReplyAliveTimeout());
-
         return helper;
     }
 
@@ -143,7 +140,7 @@ public class SocketHeartBeatHelper {
      * heartBeatInterval不大于0，返回false
      */
     private boolean sendHeartBeatEnabled;
-    protected SocketHeartBeatHelper setSendHeartBeatEnabled(boolean sendHeartBeatEnabled) {
+    public SocketHeartBeatHelper setSendHeartBeatEnabled(boolean sendHeartBeatEnabled) {
         this.sendHeartBeatEnabled = sendHeartBeatEnabled;
         return this;
     }
@@ -154,33 +151,6 @@ public class SocketHeartBeatHelper {
             return false;
         }
         return this.sendHeartBeatEnabled;
-    }
-
-    /**
-     * 远程端在一定时间间隔没有消息后自动断开
-     */
-    private long remoteNoReplyAliveTimeout;
-    public SocketHeartBeatHelper setRemoteNoReplyAliveTimeout(long remoteNoReplyAliveTimeout) {
-        this.remoteNoReplyAliveTimeout = remoteNoReplyAliveTimeout;
-        return this;
-    }
-    public long getRemoteNoReplyAliveTimeout() {
-        return this.remoteNoReplyAliveTimeout;
-    }
-
-    /**
-     * 若remoteNoReplyAliveTimeout不大于0，返回false
-     */
-    private boolean autoDisconnectOnRemoteNoReplyAliveTimeout;
-    protected SocketHeartBeatHelper setAutoDisconnectOnRemoteNoReplyAliveTimeout(boolean autoDisconnectOnRemoteNoReplyAliveTimeout) {
-        this.autoDisconnectOnRemoteNoReplyAliveTimeout = autoDisconnectOnRemoteNoReplyAliveTimeout;
-        return this;
-    }
-    public boolean isAutoDisconnectOnRemoteNoReplyAliveTimeout() {
-        if (getRemoteNoReplyAliveTimeout() <= 0) {
-            return false;
-        }
-        return this.autoDisconnectOnRemoteNoReplyAliveTimeout;
     }
 
     /* Overrides */

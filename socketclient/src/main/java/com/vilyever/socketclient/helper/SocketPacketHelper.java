@@ -24,6 +24,8 @@ public class SocketPacketHelper {
         helper.setSendTrailerData(getSendTrailerData());
         helper.setSendSegmentLength(getSendSegmentLength());
         helper.setSendSegmentEnabled(isSendSegmentEnabled());
+        helper.setSendTimeout(getSendTimeout());
+        helper.setSendTimeoutEnabled(isSendTimeoutEnabled());
 
         helper.setReadStrategy(getReadStrategy());
 
@@ -33,6 +35,8 @@ public class SocketPacketHelper {
         helper.setReceiveTrailerData(getReceiveTrailerData());
         helper.setReceiveSegmentLength(getReceiveSegmentLength());
         helper.setReceiveSegmentEnabled(isReceiveSegmentEnabled());
+        helper.setReceiveTimeout(getReceiveTimeout());
+        helper.setReceiveTimeoutEnabled(isReceiveTimeoutEnabled());
 
         return helper;
     }
@@ -166,6 +170,28 @@ public class SocketPacketHelper {
         return this.sendSegmentEnabled;
     }
 
+    /**
+     * 发送超时时长，超过时长无法写出自动断开连接
+     * 仅在每个发送包开始发送时计时，结束后重置计时
+     */
+    private long sendTimeout;
+    public SocketPacketHelper setSendTimeout(long sendTimeout) {
+        this.sendTimeout = sendTimeout;
+        return this;
+    }
+    public long getSendTimeout() {
+        return this.sendTimeout;
+    }
+
+    private boolean sendTimeoutEnabled;
+    public SocketPacketHelper setSendTimeoutEnabled(boolean sendTimeoutEnabled) {
+        this.sendTimeoutEnabled = sendTimeoutEnabled;
+        return this;
+    }
+    public boolean isSendTimeoutEnabled() {
+        return this.sendTimeoutEnabled;
+    }
+
     private ReadStrategy readStrategy = ReadStrategy.Manually;
     public SocketPacketHelper setReadStrategy(ReadStrategy readStrategy) {
         this.readStrategy = readStrategy;
@@ -281,6 +307,27 @@ public class SocketPacketHelper {
             return false;
         }
         return this.receiveSegmentEnabled;
+    }
+
+    /**
+     * 读取超时时长，超过时长没有读取到任何消息自动断开连接
+     */
+    private long receiveTimeout;
+    public SocketPacketHelper setReceiveTimeout(long receiveTimeout) {
+        this.receiveTimeout = receiveTimeout;
+        return this;
+    }
+    public long getReceiveTimeout() {
+        return this.receiveTimeout;
+    }
+
+    private boolean receiveTimeoutEnabled;
+    public SocketPacketHelper setReceiveTimeoutEnabled(boolean receiveTimeoutEnabled) {
+        this.receiveTimeoutEnabled = receiveTimeoutEnabled;
+        return this;
+    }
+    public boolean isReceiveTimeoutEnabled() {
+        return this.receiveTimeoutEnabled;
     }
 
     /* Overrides */

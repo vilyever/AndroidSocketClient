@@ -82,7 +82,7 @@ public class SocketInputReader extends Reader {
         }
     }
 
-    public byte[] readToData(byte[] data) throws IOException {
+    public byte[] readToData(byte[] data, boolean includeData) throws IOException {
         if (data == null
                 || data.length <= 0) {
             return null;
@@ -117,9 +117,10 @@ public class SocketInputReader extends Reader {
                     return null;
                 }
 
-                byte[] result = new byte[list.size()];
+                int resultLength = list.size() - (includeData ? 0 : data.length);
+                byte[] result = new byte[resultLength];
                 Iterator<Byte> iterator = list.iterator();
-                for (int i = 0; i < result.length; i++) {
+                for (int i = 0; i < resultLength; i++) {
                     result[i] = iterator.next();
                 }
 
