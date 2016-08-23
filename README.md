@@ -31,6 +31,8 @@ dependencies {
 常见包结构2：【包头（可选）】【余下包长度（正文加包尾长度）（此部分也可做包头）（此部分长度固定）】【正文】【包尾（可选）】
 
 ## Usage
+### app模块下包含简单的使用demo
+
 ### 远程端连接信息配置
 ```java
     socketClient.getAddress().setRemoteIP(IPUtil.getLocalIPAddress(true)); // 远程端IP地址
