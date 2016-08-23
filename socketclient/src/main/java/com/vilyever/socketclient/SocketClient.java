@@ -6,7 +6,6 @@ import android.os.Looper;
 import android.os.Message;
 import android.support.annotation.CallSuper;
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import com.vilyever.socketclient.helper.SocketClientAddress;
 import com.vilyever.socketclient.helper.SocketClientDelegate;
@@ -940,7 +939,6 @@ public class SocketClient {
         long currentTime = System.currentTimeMillis();
 
         if (getSocketConfigure().getHeartBeatHelper().isSendHeartBeatEnabled()) {
-            Log.d("logger", "current " + currentTime + " , last " + getLastSendHeartBeatMessageTime() + ", diff " + (currentTime - getLastSendHeartBeatMessageTime()));
             if (currentTime - getLastSendHeartBeatMessageTime() >= getSocketConfigure().getHeartBeatHelper().getHeartBeatInterval()) {
                 __i__sendHeartBeat();
                 setLastSendHeartBeatMessageTime(currentTime);
@@ -1330,8 +1328,8 @@ public class SocketClient {
                     self.setReceivingResponsePacket(null);
                 }
             }
-            catch (IOException e) {
-                e.printStackTrace();
+            catch (Exception e) {
+//                e.printStackTrace();
                 self.disconnect();
 
                 if (self.getReceivingResponsePacket() != null) {
