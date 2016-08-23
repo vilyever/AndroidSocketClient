@@ -246,7 +246,7 @@ public class TestClient {
     private void __i__setupReadToTrailerForSender(SocketClient socketClient) {
         /**
          * 根据连接双方协议设置自动发送的包尾数据
-         * 每次发送数据包（包括心跳包）都会在发送包内容前自动发送此包尾
+         * 每次发送数据包（包括心跳包）都会在发送包内容后自动发送此包尾
          *
          * 例：socketClient.sendData(new byte[]{0x01, 0x02})的步骤为
          * 1. socketClient向远程端发送包头（如果设置了包头信息）
@@ -269,7 +269,7 @@ public class TestClient {
         /**
          * 设置分段发送数据长度
          * 即在发送指定长度后通过 {@link SocketClientSendingDelegate#onSendingPacketInProgress(SocketClient, SocketPacket, float, int)}回调当前发送进度
-         * 注意：无论设置的分段长度为多小，回调的频率最高为1秒30次，防止因此产生主线程的卡顿
+         * 注意：回调过于频繁可能导致设置UI过于频繁从而导致主线程卡顿
          *
          * 若无需进度回调可删除此二行，删除后仍有【发送开始】【发送结束】的回调
          */
@@ -309,7 +309,7 @@ public class TestClient {
 
         /**
          * 根据连接双方协议设置的包头数据
-         * 每次接收数据包（包括心跳包）都会在先接收此包头
+         * 每次接收数据包（包括心跳包）都会先接收此包头
          *
          * 若无需包头可删除此行
          */
@@ -367,7 +367,7 @@ public class TestClient {
 
         /**
          * 根据连接双方协议设置自动发送的包尾数据
-         * 每次发送数据包（包括心跳包）都会在发送包内容前自动发送此包尾
+         * 每次发送数据包（包括心跳包）都会在发送包内容后自动发送此包尾
          *
          * 若无需包尾可删除此行
          * 注意：
@@ -378,7 +378,7 @@ public class TestClient {
         /**
          * 设置分段发送数据长度
          * 即在发送指定长度后通过 {@link SocketClientSendingDelegate#onSendingPacketInProgress(SocketClient, SocketPacket, float, int)}回调当前发送进度
-         * 注意：无论设置的分段长度为多小，回调的频率最高为1秒30次，防止因此产生主线程的卡顿
+         * 注意：回调过于频繁可能导致设置UI过于频繁从而导致主线程卡顿
          *
          * 若无需进度回调可删除此二行，删除后仍有【发送开始】【发送结束】的回调
          */
@@ -433,7 +433,7 @@ public class TestClient {
 
         /**
          * 根据连接双方协议设置的包头数据
-         * 每次接收数据包（包括心跳包）都会在先接收此包头
+         * 每次接收数据包（包括心跳包）都会先接收此包头
          *
          * 若无需包头可删除此行
          */
@@ -441,10 +441,10 @@ public class TestClient {
 
         /**
          * 根据连接双方协议设置的包尾数据
-         * 每次接收数据包（包括心跳包）都会在检测接收到与包尾数据相同的byte[]时回调一个数据包
          *
-         * 使用{@link com.vilyever.socketclient.helper.SocketPacketHelper.ReadStrategy.AutoReadToTrailer}必须设置此项
-         * 用于分隔多条消息
+         * 若无需包尾可删除此行
+         * 注意：
+         * 使用{@link com.vilyever.socketclient.helper.SocketPacketHelper.ReadStrategy.AutoReadByLength}时不依赖包尾读取数据
          */
         socketClient.getSocketPacketHelper().setReceiveTrailerData(new byte[]{0x13, 0x10});
 
@@ -462,7 +462,7 @@ public class TestClient {
         /**
          * 设置分段发送数据长度
          * 即在发送指定长度后通过 {@link SocketClientSendingDelegate#onSendingPacketInProgress(SocketClient, SocketPacket, float, int)}回调当前发送进度
-         * 注意：无论设置的分段长度为多小，回调的频率最高为1秒30次，防止因此产生主线程的卡顿
+         * 注意：回调过于频繁可能导致设置UI过于频繁从而导致主线程卡顿
          *
          * 若无需进度回调可删除此二行，删除后仍有【发送开始】【发送结束】的回调
          */

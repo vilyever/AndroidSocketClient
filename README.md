@@ -126,7 +126,7 @@ dependencies {
 ```java
     /**
      * 根据连接双方协议设置自动发送的包尾数据
-     * 每次发送数据包（包括心跳包）都会在发送包内容前自动发送此包尾
+     * 每次发送数据包（包括心跳包）都会在发送包内容后自动发送此包尾
      *
      * 例：socketClient.sendData(new byte[]{0x01, 0x02})的步骤为
      * 1. socketClient向远程端发送包头（如果设置了包头信息）
@@ -189,7 +189,7 @@ dependencies {
 
     /**
      * 根据连接双方协议设置的包头数据
-     * 每次接收数据包（包括心跳包）都会在先接收此包头
+     * 每次接收数据包（包括心跳包）都会先接收此包头
      *
      * 若无需包头可删除此行
      */
@@ -209,7 +209,7 @@ dependencies {
 ```java
     /**
      * 设置包长度转换器
-     * 即每次发送数据时，将包头以外的数据长度转换为特定的byte[]发送个远程端用于解析还需要读取多少长度的数据
+     * 即每次发送数据时，将包头以外的数据长度转换为特定的byte[]发送到远程端用于解析还需要读取多少长度的数据
      *
      * 例：socketClient.sendData(new byte[]{0x01, 0x02})的步骤为
      * 1. socketClient向远程端发送包头（如果设置了包头信息）
@@ -248,7 +248,7 @@ dependencies {
 
     /**
      * 根据连接双方协议设置自动发送的包尾数据
-     * 每次发送数据包（包括心跳包）都会在发送包内容前自动发送此包尾
+     * 每次发送数据包（包括心跳包）都会在发送包内容后自动发送此包尾
      *
      * 若无需包尾可删除此行
      * 注意：
@@ -314,7 +314,7 @@ dependencies {
 
     /**
      * 根据连接双方协议设置的包头数据
-     * 每次接收数据包（包括心跳包）都会在先接收此包头
+     * 每次接收数据包（包括心跳包）都会先接收此包头
      *
      * 若无需包头可删除此行
      */
@@ -322,10 +322,10 @@ dependencies {
 
     /**
      * 根据连接双方协议设置的包尾数据
-     * 每次接收数据包（包括心跳包）都会在检测接收到与包尾数据相同的byte[]时回调一个数据包
      *
-     * 使用{@link com.vilyever.socketclient.helper.SocketPacketHelper.ReadStrategy.AutoReadToTrailer}必须设置此项
-     * 用于分隔多条消息
+     * 若无需包尾可删除此行
+     * 注意：
+     * 使用{@link com.vilyever.socketclient.helper.SocketPacketHelper.ReadStrategy.AutoReadByLength}时不依赖包尾读取数据
      */
     socketClient.getSocketPacketHelper().setReceiveTrailerData(new byte[]{0x13, 0x10});
 
