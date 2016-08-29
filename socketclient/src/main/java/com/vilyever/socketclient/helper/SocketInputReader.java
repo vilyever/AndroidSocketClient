@@ -101,7 +101,7 @@ public class SocketInputReader extends Reader {
 
                 while (-1 != (c = this.inputStream.read())) {
                     list.add((byte) c);
-                    if (c == data[matchIndex]) {
+                    if (c == (0xff & data[matchIndex])) {
                         matchIndex++;
                     }
                     else {
