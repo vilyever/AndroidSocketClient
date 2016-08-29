@@ -32,6 +32,7 @@ dependencies {
 
 ## Usage
 ### app模块下包含简单的使用demo
+### 请一定设置读取策略socketClient.getSocketPacketHelper().setReadStrategy();
 
 ### 远程端连接信息配置
 ```java
@@ -376,6 +377,7 @@ dependencies {
 
 ### 常用回调配置
 ```java
+    // 对应removeSocketClientDelegate
     socketClient.registerSocketClientDelegate(new SocketClientDelegate() {
         /**
          * 连接上远程端时的回调
@@ -410,6 +412,7 @@ dependencies {
 
 ### 发送状态回调配置
 ```java
+    // 对应removeSocketClientSendingDelegate
     socketClient.registerSocketClientSendingDelegate(new SocketClientSendingDelegate() {
         /**
          * 数据包开始发送时的回调
@@ -449,6 +452,7 @@ dependencies {
 
 ### 接收状态回调配置
 ```java
+    // 对应removeSocketClientReceiveDelegate
     socketClient.registerSocketClientReceiveDelegate(new SocketClientReceivingDelegate() {
         /**
          * 开始接受一个新的数据包时的回调
