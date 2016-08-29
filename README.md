@@ -17,11 +17,18 @@ Step 2. Add the dependency in the form
 
 ```gradle
 dependencies {
-  compile 'com.github.vilyever:AndroidSocketClient:3.0.0'
+  compile 'com.github.vilyever:AndroidSocketClient:3.0.1'
 }
 ```
 
 ## Updates
+* 3.0.1
+</br>
+修复包头验证bug，by zzdwuliang
+</br>
+增加地址检测的详细log
+</br>
+
 * 3.0.0
 </br>
 支持ReadToData和ReadToLength自动读取以下两种结构
