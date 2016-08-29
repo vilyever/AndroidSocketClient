@@ -989,6 +989,8 @@ public class SocketClient {
                 self.setSendingPacket(null);
                 self.setReceivingResponsePacket(null);
 
+                self.setConnectionThread(null);
+
                 self.__i__onConnected();
             }
             catch (IOException e) {
@@ -1004,7 +1006,7 @@ public class SocketClient {
         public void run() {
             super.run();
 
-            if (self.getConnectionThread() != null) {
+            if (self.connectionThread != null) {
                 self.getConnectionThread().interrupt();
                 self.setConnectionThread(null);
             }
@@ -1029,11 +1031,11 @@ public class SocketClient {
                 }
             }
 
-            if (self.getSendThread() != null) {
+            if (self.sendThread != null) {
                 self.getSendThread().interrupt();
                 self.setSendThread(null);
             }
-            if (self.getReceiveThread() != null) {
+            if (self.receiveThread != null) {
                 self.getReceiveThread().interrupt();
                 self.setReceiveThread(null);
             }

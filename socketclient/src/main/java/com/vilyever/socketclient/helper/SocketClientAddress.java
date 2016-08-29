@@ -47,15 +47,15 @@ public class SocketClientAddress {
     /* Public Methods */
     public void checkValidation() {
         if (!StringValidation.validateRegex(getRemoteIP(), StringValidation.RegexIP)) {
-            throw new IllegalArgumentException("we need a correct remote IP to connect");
+            throw new IllegalArgumentException("we need a correct remote IP to connect. Current is " + getRemoteIP());
         }
 
         if (!StringValidation.validateRegex(getRemotePort(), StringValidation.RegexPort)) {
-            throw new IllegalArgumentException("we need a correct remote port to connect");
+            throw new IllegalArgumentException("we need a correct remote port to connect. Current is " + getRemotePort());
         }
 
         if (getConnectionTimeout() < 0) {
-            throw new IllegalArgumentException("we need connectionTimeout > 0");
+            throw new IllegalArgumentException("we need connectionTimeout > 0. Current is " + getConnectionTimeout());
         }
     }
 
