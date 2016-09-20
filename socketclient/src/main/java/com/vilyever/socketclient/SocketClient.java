@@ -1045,7 +1045,9 @@ public class SocketClient {
             self.setSocketInputReader(null);
             self.setSocketConfigure(null);
 
-            self.getHearBeatCountDownTimer().cancel();
+            if (self.hearBeatCountDownTimer != null) {
+                self.hearBeatCountDownTimer.cancel();
+            }
 
             if (self.getSendingPacket() != null) {
                 self.__i__onSendPacketCancel(self.getSendingPacket());
