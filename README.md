@@ -17,11 +17,15 @@ Step 2. Add the dependency in the form
 
 ```gradle
 dependencies {
-  compile 'com.github.vilyever:AndroidSocketClient:3.0.2'
+  compile 'com.github.vilyever:AndroidSocketClient:3.0.3'
 }
 ```
 
 ## Updates
+* 3.0.3
+</br>
+提升readByLength按长度读取的速度 [issue #26](/../../issues/26)
+
 * 3.0.2
 </br>
 修复初次连接失败时，因CountDownTimer导致崩溃的问题 [issue #24](/../../issues/24)
