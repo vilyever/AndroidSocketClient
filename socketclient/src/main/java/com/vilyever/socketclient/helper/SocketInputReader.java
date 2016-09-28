@@ -17,7 +17,6 @@ public class SocketInputReader extends Reader {
 
     private InputStream inputStream;
 
-
     /* Constructors */
     public SocketInputReader(InputStream inputStream) {
         super(inputStream);
@@ -58,17 +57,12 @@ public class SocketInputReader extends Reader {
             try {
                 byte[] buffer = new byte[length];
                 int index = 0;
-                int c;
+                int readCount = 0;
 
-                while (-1 != (c = this.inputStream.read())) {
-                    if (index < length) {
-                        buffer[index++] = (byte) c;
-                    }
-
-                    if (index >= length) {
-                        break;
-                    }
-                }
+                do {
+                    readCount = this.inputStream.read(buffer, index, length - index);
+                    index += readCount;
+                } while (readCount != -1 && index < length);
 
                 if (index != length) {
                     return null;

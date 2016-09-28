@@ -49,11 +49,11 @@ public class TestClient {
 
 //            __i__setupVariableHeartBeat(this.localSocketClient);
 
-            __i__setupReadToTrailerForSender(this.localSocketClient);
-            __i__setupReadToTrailerForReceiver(this.localSocketClient);
+//            __i__setupReadToTrailerForSender(this.localSocketClient);
+//            __i__setupReadToTrailerForReceiver(this.localSocketClient);
 
-//            __i__setupReadByLengthForSender(this.localSocketClient);
-//            __i__setupReadByLengthForReceiver(this.localSocketClient);
+            __i__setupReadByLengthForSender(this.localSocketClient);
+            __i__setupReadByLengthForReceiver(this.localSocketClient);
 
 //            __i__setupReadManuallyForSender(this.localSocketClient);
 //            __i__setupReadManuallyForReceiver(this.localSocketClient);

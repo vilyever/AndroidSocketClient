@@ -55,11 +55,11 @@ public class TestServer {
 
 //            __i__setupVariableHeartBeat(this.socketServer);
 
-            __i__setupReadToTrailerForSender(this.socketServer);
-            __i__setupReadToTrailerForReceiver(this.socketServer);
+//            __i__setupReadToTrailerForSender(this.socketServer);
+//            __i__setupReadToTrailerForReceiver(this.socketServer);
 
-//            __i__setupReadByLengthForSender(this.socketServer);
-//            __i__setupReadByLengthForReceiver(this.socketServer);
+            __i__setupReadByLengthForSender(this.socketServer);
+            __i__setupReadByLengthForReceiver(this.socketServer);
 
 //            __i__setupReadManuallyForSender(this.socketServer);
 //            __i__setupReadManuallyForReceiver(this.socketServer);
